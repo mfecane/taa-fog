@@ -28,7 +28,7 @@ export class FogMaterial extends THREE.ShaderMaterial {
 				fogDensity: { value: 0.5 },
 				maxFogDistance: { value: 9.0 },
 				fogSphereCenter: { value: new THREE.Vector3(0, 1, 0) }, // Sphere center
-				fogSphereRadius: { value: 7.1 }, // Sphere radius
+				fogSphereRadius: { value: 3.5 }, // Sphere radius
 				time: { value: 0.0 },
 				animSpeed: { value: 0.4 }, // Animation speed (warp speed)
 				lightDirection: { value: new THREE.Vector3(0, -1, 0) }, // normalized direction FROM light TO scene

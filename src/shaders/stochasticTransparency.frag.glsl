@@ -16,7 +16,7 @@ const float BAYER_4X4[BAYER_LEN] = float[BAYER_LEN](
 );
 
 float ditherPattern(vec2 pixelCoord, int jitterIndex) {
-    int j = jitterIndex & 15;
+    int j = jitterIndex & 255;
 
     // 0..3, 0..3
     int ox = j % BAYER_SIZE;

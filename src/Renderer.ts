@@ -37,7 +37,7 @@ export class Renderer {
 		this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
 		// Initialize pipeline with downsampling factor of 2
-		this.pipeline = new Pipeline(this.renderer, this.camera, 2)
+		this.pipeline = new Pipeline(this.renderer, this.camera)
 
 		// Handle window resize
 		window.addEventListener('resize', () => this.onResize())

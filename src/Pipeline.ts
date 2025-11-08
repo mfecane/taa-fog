@@ -11,9 +11,6 @@ export class Pipeline {
 	private camera: THREE.PerspectiveCamera
 	private sceneBuilder: Scene | null = null
 
-	// Downsampling factor
-	private downsamplingFactor: number = 2
-
 	// Color buffer (full resolution)
 	private colorTarget: THREE.WebGLRenderTarget | null = null
 
@@ -50,10 +47,9 @@ export class Pipeline {
 
 	private startTime: number = Date.now()
 
-	constructor(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera, downsamplingFactor: number = 2) {
+	constructor(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera, private downsamplingFactor: number = 1) {
 		this.renderer = renderer
 		this.camera = camera
-		this.downsamplingFactor = downsamplingFactor
 
 		// Initialize buffers
 		this.initColorBuffer()

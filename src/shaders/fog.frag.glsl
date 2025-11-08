@@ -138,7 +138,7 @@ float rand(vec2 n) {
 }
 
 vec3 rayNoise(vec3 n) {
-    float scale = 0.01;
+    float scale = 0.1;
     return scale * (vec3(rand(n.xy), rand(n.yz), rand(n.zx)) - vec3(0.5));
 }
 
@@ -213,19 +213,20 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float maxDist) {
     float opticalDepth = 0.0;
     vec3 scatteredLight = vec3(0.0);
 
-    float g = 0.7; // forward scattering
+    // Isotropic scattering to make fog brightness more view-angle uniform
+    float g = 0.2;
 
     for (int i = 0; i < FOG_STEPS; i++) {
         float t = fogStart + float(i) * tStep;
         float tNext = fogStart + (float(i) + 1.0) * tStep;
-        
+
         // Clamp step to depth buffer boundary if it would exceed it
         float actualStepEnd = min(tNext, maxDist);
         float actualStepStart = max(t, fogStart);
         float actualStepSize = actualStepEnd - actualStepStart;
-        
+
         if (actualStepSize <= 0.0 || actualStepStart >= maxDist) break;
-        
+
         // Sample at the center of the actual step
         float tSample = actualStepStart + actualStepSize * 0.5;
         vec3 worldPos = ro + rd * tSample;
