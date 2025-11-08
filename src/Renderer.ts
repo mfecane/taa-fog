@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import * as dat from 'dat.gui'
 import Stats from 'stats.js'
 import { ResourceLoader } from './loaders/ResourceLoader'
 import { Scene } from './Scene'
@@ -18,7 +17,6 @@ export class Renderer {
 	private animationFrameId: number | null = null
 	private sceneBuilder: Scene | null = null
 	private pipeline: Pipeline
-	private gui: dat.GUI | null = null
 	private stats: Stats | null = null
 	private settings: Settings
 	private settingsStorage: SettingsStorage | null = null
@@ -99,104 +97,7 @@ export class Renderer {
 	}
 
 	private setupGUI(): void {
-		this.gui = new dat.GUI()
-
-		const cubeFolder = this.gui.addFolder('Cube')
-		const opacityController = cubeFolder.add(
-			{ opacity: this.settings.getCubeOpacity() },
-			'opacity',
-			0.0,
-			1.0,
-			0.01
-		)
-		opacityController.onChange((value: number) => {
-			this.settings.setCubeOpacity(value)
-			this.setCubeOpacity(value)
-			this.saveSettings()
-		})
-		cubeFolder.open()
-
-		const fogFolder = this.gui.addFolder('Fog')
-		const fogMaterial = this.pipeline.getFogMaterial()
-		if (fogMaterial) {
-			const lightMultiplierController = fogFolder.add(
-				{ lightMultiplier: this.settings.getFogLightMultiplier() },
-				'lightMultiplier',
-				0.0,
-				10.0,
-				0.1
-			)
-			lightMultiplierController.onChange((value: number) => {
-				this.settings.setFogLightMultiplier(value)
-				if (fogMaterial.uniforms.lightMultiplier) {
-					fogMaterial.uniforms.lightMultiplier.value = value
-				}
-				this.saveSettings()
-			})
-
-			const warpSpeedController = fogFolder.add(
-				{ warpSpeed: this.settings.getFogWarpSpeed() },
-				'warpSpeed',
-				0.0,
-				2.0,
-				0.01
-			)
-			warpSpeedController.onChange((value: number) => {
-				this.settings.setFogWarpSpeed(value)
-				if (fogMaterial.uniforms.animSpeed) {
-					fogMaterial.uniforms.animSpeed.value = value
-				}
-				this.saveSettings()
-			})
-		}
-
-		const fogBlendMaterial = this.pipeline.getFogBlendMaterial()
-		if (fogBlendMaterial) {
-			const blendFactorController = fogFolder.add(
-				{ blendFactor: this.settings.getFogBlendFactor() },
-				'blendFactor',
-				0.0,
-				1.0,
-				0.01
-			)
-			blendFactorController.onChange((value: number) => {
-				this.settings.setFogBlendFactor(value)
-				this.pipeline.setFogBlendFactor(value)
-				this.saveSettings()
-			})
-		}
-
-		const composeMaterial = this.pipeline.getComposeMaterial()
-		if (composeMaterial) {
-			const fogBlurController = fogFolder.add(
-				{ fogBlur: this.settings.getFogBlur() },
-				'fogBlur',
-				0.0,
-				10.0,
-				0.1
-			)
-			fogBlurController.onChange((value: number) => {
-				this.settings.setFogBlur(value)
-				this.pipeline.setFogBlurRadius(value)
-				this.saveSettings()
-			})
-		}
-		fogFolder.open()
-
-		const particlesFolder = this.gui.addFolder('Particles')
-		const brightnessController = particlesFolder.add(
-			{ brightness: this.settings.getParticleBrightness() },
-			'brightness',
-			0.0,
-			5.0,
-			0.1
-		)
-		brightnessController.onChange((value: number) => {
-			this.settings.setParticleBrightness(value)
-			this.setParticleBrightness(value)
-			this.saveSettings()
-		})
-		particlesFolder.open()
+		this.settings.setupGUI(this.pipeline, this.sceneBuilder!, this.settingsStorage)
 	}
 
 	private applySettings(): void {
@@ -211,6 +112,9 @@ export class Renderer {
 			}
 			if (fogMaterial.uniforms.animSpeed) {
 				fogMaterial.uniforms.animSpeed.value = this.settings.getFogWarpSpeed()
+			}
+			if (fogMaterial.uniforms.fogSteps) {
+				fogMaterial.uniforms.fogSteps.value = this.settings.getFogSteps()
 			}
 		}
 
@@ -313,9 +217,7 @@ export class Renderer {
 		}
 
 		// Clean up GUI
-		if (this.gui) {
-			this.gui.destroy()
-		}
+		this.settings.dispose()
 
 		this.renderer.dispose()
 		window.removeEventListener('resize', () => this.onResize())

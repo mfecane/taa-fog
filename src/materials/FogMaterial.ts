@@ -9,7 +9,6 @@ export class FogMaterial extends THREE.ShaderMaterial {
 				DEPTH_PACKING: 1,
 				PERSPECTIVE_CAMERA: 1,
 				USE_SHADOWMAP: 1,
-				FOG_STEPS: 128,
 			},
 			uniforms: {
 				tDepth: { value: null },
@@ -41,6 +40,7 @@ export class FogMaterial extends THREE.ShaderMaterial {
 				shadowIntensity: { value: 1.0 },
 				shadowBias: { value: 0.0 },
 				shadowRadius: { value: 1.0 },
+				fogSteps: { value: 128.0 },
 			},
 			vertexShader: fogVert,
 			fragmentShader: fogFrag,

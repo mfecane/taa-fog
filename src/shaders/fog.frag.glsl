@@ -31,6 +31,7 @@ uniform vec2 shadowMapSize;
 uniform float shadowIntensity;
 uniform float shadowBias;
 uniform float shadowRadius;
+uniform float fogSteps;
 
 varying vec2 vUv;
 
@@ -209,14 +210,14 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float maxDist) {
         return vec4(0.0);
     }
 
-    float tStep = (fogEnd - fogStart) / float(FOG_STEPS);
+    float tStep = (fogEnd - fogStart) / float(fogSteps);
     float opticalDepth = 0.0;
     vec3 scatteredLight = vec3(0.0);
 
     // Isotropic scattering to make fog brightness more view-angle uniform
     float g = 0.2;
 
-    for (int i = 0; i < FOG_STEPS; i++) {
+    for (int i = 0; i < int(fogSteps); i++) {
         float t = fogStart + float(i) * tStep;
         float tNext = fogStart + (float(i) + 1.0) * tStep;
 
