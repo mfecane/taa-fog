@@ -5,10 +5,10 @@ export class Scene {
 	public scene: THREE.Scene
 	public cube: THREE.Mesh | null = null
 	public floor: THREE.Mesh | null = null
-	public pointLight: THREE.PointLight | null = null
+	public directionalLight: THREE.DirectionalLight | null = null
 	public axesHelper: THREE.AxesHelper | null = null
 	public gridHelper: THREE.GridHelper | null = null
-	public lightHelper: THREE.PointLightHelper | null = null
+	public lightHelper: THREE.DirectionalLightHelper | null = null
 	public shadowHelper: THREE.CameraHelper | null = null
 	private showHelpers: boolean = false
 
@@ -24,6 +24,9 @@ export class Scene {
 	}
 
 	public build(): void {
+		// Set background color for areas without geometry
+		this.scene.background = new THREE.Color(0x1a1a26) // Dark blue-gray
+
 		// Floor plane
 		const floorGeometry = new THREE.PlaneGeometry(20, 20)
 		const floorMaterial = new THREE.MeshStandardMaterial({
@@ -46,15 +49,22 @@ export class Scene {
 		this.cube.receiveShadow = true
 		this.scene.add(this.cube)
 
-		// Point light
-		this.pointLight = new THREE.PointLight(0xffffff, 30, 100)
-		this.pointLight.position.set(2, 4, 1)
-		this.pointLight.castShadow = true
-		this.pointLight.shadow.mapSize.width = 2048
-		this.pointLight.shadow.mapSize.height = 2048
-		this.pointLight.shadow.camera.near = 0.5
-		this.pointLight.shadow.camera.far = 50
-		this.scene.add(this.pointLight)
+		// Directional light
+		this.directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+		this.directionalLight.position.set(1, 2, 1)
+		this.directionalLight.lookAt(0, 0, 0)
+		this.directionalLight.castShadow = true
+		this.directionalLight.shadow.mapSize.width = 2048
+		this.directionalLight.shadow.mapSize.height = 2048
+		this.directionalLight.shadow.camera.near = 0.5
+		this.directionalLight.shadow.camera.far = 5
+		// Set orthographic camera bounds for directional light shadow
+		const shadowCamera = this.directionalLight.shadow.camera as THREE.OrthographicCamera
+		shadowCamera.left = -2
+		shadowCamera.right = 2
+		shadowCamera.top = 2
+		shadowCamera.bottom = -2
+		this.scene.add(this.directionalLight)
 
 		// Ambient light for overall illumination
 		const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
@@ -69,11 +79,11 @@ export class Scene {
 		this.gridHelper.visible = this.showHelpers
 		this.scene.add(this.gridHelper)
 
-		this.lightHelper = new THREE.PointLightHelper(this.pointLight, 0.5)
+		this.lightHelper = new THREE.DirectionalLightHelper(this.directionalLight, 0.5)
 		this.lightHelper.visible = this.showHelpers
 		this.scene.add(this.lightHelper)
 
-		this.shadowHelper = new THREE.CameraHelper(this.pointLight.shadow.camera)
+		this.shadowHelper = new THREE.CameraHelper(this.directionalLight.shadow.camera)
 		this.shadowHelper.visible = this.showHelpers
 		this.scene.add(this.shadowHelper)
 	}

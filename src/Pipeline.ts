@@ -2,6 +2,9 @@ import * as THREE from 'three'
 import { Scene } from './Scene'
 import { TAABlendSimpleMaterial } from './materials/TAABlendSimpleMaterial'
 import { TAAVelocityMaterial } from './materials/TAAVelocityMaterial'
+import { DepthPassMaterial } from './materials/DepthPassMaterial'
+import { FogMaterial } from './materials/FogMaterial'
+import { ComposeMaterial } from './materials/ComposeMaterial'
 
 export class Pipeline {
 	private renderer: THREE.WebGLRenderer
@@ -32,6 +35,27 @@ export class Pipeline {
 	private previousViewMatrix: THREE.Matrix4 = new THREE.Matrix4()
 	private previousProjectionMatrix: THREE.Matrix4 = new THREE.Matrix4()
 	private taaFirstFrame: boolean = true
+	private startTime: number = Date.now()
+
+	// Depth pass properties
+	private depthTarget: THREE.WebGLRenderTarget | null = null
+	private depthPassMaterial: DepthPassMaterial | null = null
+	private depthPassQuad: THREE.Mesh | null = null
+	private depthPassScene: THREE.Scene | null = null
+	private depthPassCamera: THREE.OrthographicCamera | null = null
+
+	// Fog properties
+	private fogTarget: THREE.WebGLRenderTarget | null = null
+	private fogMaterial: FogMaterial | null = null
+	private fogQuad: THREE.Mesh | null = null
+	private fogScene: THREE.Scene | null = null
+	private fogCamera: THREE.OrthographicCamera | null = null
+
+	// Composition properties
+	private composeMaterial: ComposeMaterial | null = null
+	private composeQuad: THREE.Mesh | null = null
+	private composeScene: THREE.Scene | null = null
+	private composeCamera: THREE.OrthographicCamera | null = null
 
 	constructor(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera) {
 		this.renderer = renderer
@@ -46,6 +70,15 @@ export class Pipeline {
 
 		// Initialize TAA
 		this.initTAA()
+
+		// Initialize depth pass (keep it available for future use)
+		this.initDepthPass()
+
+		// Initialize fog
+		this.initFog()
+
+		// Initialize composition
+		this.initComposition()
 	}
 
 	public setScene(sceneBuilder: Scene): void {
@@ -63,6 +96,21 @@ export class Pipeline {
 		} else {
 			this.renderer.render(this.sceneBuilder!.scene, this.camera)
 		}
+	}
+
+	private renderDepthPass(): void {
+		// Render scene to depth target (with depth texture)
+		this.renderer.setRenderTarget(this.depthTarget!)
+		this.renderer.render(this.sceneBuilder!.scene, this.camera)
+
+		// Update depth pass material with depth texture
+		if (this.depthPassMaterial && this.depthTarget!.depthTexture) {
+			this.depthPassMaterial.uniforms['tDepth'].value = this.depthTarget!.depthTexture
+		}
+
+		// Render depth pass to screen
+		this.renderer.setRenderTarget(null)
+		this.renderer.render(this.depthPassScene!, this.depthPassCamera!)
 	}
 
 	private renderTAA(): void {
@@ -157,9 +205,41 @@ export class Pipeline {
 			// this.taaBlendMaterial.uniforms['tHistoryDepth'].value = this.taaDepthTarget!.depthTexture || this.taaDepthTarget!.texture
 		}
 
-		// Render accumulated result to screen
-		this.renderer.setRenderTarget(null)
-		this.renderer.render(this.taaScene!, this.taaCamera!)
+		// Render fog using depth texture
+		if (this.fogMaterial && this.taaDepthTarget && this.sceneBuilder) {
+			// Update depth texture
+			this.fogMaterial.uniforms['tDepth'].value = this.taaDepthTarget.depthTexture || this.taaDepthTarget.texture
+
+			// Update camera (includes all camera-related uniforms)
+			this.fogMaterial.updateCamera(this.camera)
+
+			// Update time
+			const currentTime = (Date.now() - this.startTime) / 1000.0
+			this.fogMaterial.updateTime(currentTime)
+
+			// Update light data if directional light exists
+			if (this.sceneBuilder.directionalLight) {
+				this.fogMaterial.updateLight(this.sceneBuilder.directionalLight)
+			}
+
+			// Clear fog target with transparent black (alpha = 0) before rendering
+			this.renderer.setRenderTarget(this.fogTarget!)
+			this.renderer.setClearColor(0x000000, 0.0) // Clear with alpha = 0
+			this.renderer.clear()
+			this.renderer.render(this.fogScene!, this.fogCamera!)
+		}
+
+		// Compose fog over TAA result
+		if (this.composeMaterial) {
+			this.composeMaterial.uniforms['tColor'].value = this.taaPreviousTarget!.texture
+			this.composeMaterial.uniforms['tFog'].value = this.fogTarget!.texture
+			this.renderer.setRenderTarget(null)
+			this.renderer.render(this.composeScene!, this.composeCamera!)
+		} else {
+			// Fallback: render accumulated result to screen
+			this.renderer.setRenderTarget(null)
+			this.renderer.render(this.taaScene!, this.taaCamera!)
+		}
 
 		// Swap accumulated and previous targets for next frame (ping-pong)
 		const temp = this.taaAccumulatedTarget
@@ -177,6 +257,12 @@ export class Pipeline {
 	}
 
 	public updateTargets(): void {
+		// Update depth pass target (keep it available)
+		if (this.depthTarget) {
+			this.depthTarget.setSize(window.innerWidth, window.innerHeight)
+		}
+
+		// TAA target updates
 		if (!this.taaCurrentTarget || !this.taaPreviousTarget || !this.taaAccumulatedTarget) return
 
 		this.taaCurrentTarget.setSize(window.innerWidth, window.innerHeight)
@@ -191,6 +277,14 @@ export class Pipeline {
 		}
 		if (this.taaVelocityTarget) {
 			this.taaVelocityTarget.setSize(window.innerWidth, window.innerHeight)
+		}
+
+		// Update fog target
+		if (this.fogTarget) {
+			this.fogTarget.setSize(window.innerWidth, window.innerHeight)
+		}
+		if (this.fogMaterial) {
+			this.fogMaterial.updateResolution(window.innerWidth, window.innerHeight)
 		}
 
 		// Simple material doesn't need texelSize update
@@ -212,6 +306,10 @@ export class Pipeline {
 		this.originalProjectionMatrix.copy(this.camera.projectionMatrix)
 	}
 
+	public getFogMaterial(): FogMaterial | null {
+		return this.fogMaterial
+	}
+
 	public getTAABlendFactor(): number {
 		return this.taaBlendMaterial?.uniforms['blendFactor']?.value ?? 0.7
 	}
@@ -220,6 +318,73 @@ export class Pipeline {
 		if (this.taaBlendMaterial?.uniforms['blendFactor']) {
 			this.taaBlendMaterial.uniforms['blendFactor'].value = value
 		}
+	}
+
+	private initDepthPass(): void {
+		// Create depth render target with depth texture enabled
+		this.depthTarget = new THREE.WebGLRenderTarget(
+			window.innerWidth,
+			window.innerHeight,
+			{
+				minFilter: THREE.NearestFilter,
+				magFilter: THREE.NearestFilter,
+				format: THREE.RGBAFormat,
+				type: THREE.UnsignedByteType,
+				depthTexture: new THREE.DepthTexture(window.innerWidth, window.innerHeight),
+			}
+		)
+
+		// Create fullscreen quad for depth visualization
+		const geometry = new THREE.PlaneGeometry(2, 2)
+		this.depthPassMaterial = new DepthPassMaterial(window.innerWidth, window.innerHeight)
+
+		this.depthPassQuad = new THREE.Mesh(geometry, this.depthPassMaterial)
+
+		// Create scene and camera for fullscreen quad
+		this.depthPassScene = new THREE.Scene()
+		this.depthPassScene.add(this.depthPassQuad)
+
+		this.depthPassCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+	}
+
+	private initFog(): void {
+		// Create fog render target with alpha support
+		this.fogTarget = new THREE.WebGLRenderTarget(
+			window.innerWidth,
+			window.innerHeight,
+			{
+				minFilter: THREE.LinearFilter,
+				magFilter: THREE.LinearFilter,
+				format: THREE.RGBAFormat,
+				type: THREE.UnsignedByteType,
+			}
+		)
+
+		// Create fullscreen quad for fog
+		const geometry = new THREE.PlaneGeometry(2, 2)
+		this.fogMaterial = new FogMaterial(window.innerWidth, window.innerHeight, this.camera)
+
+		this.fogQuad = new THREE.Mesh(geometry, this.fogMaterial)
+
+		// Create scene and camera for fullscreen quad
+		this.fogScene = new THREE.Scene()
+		this.fogScene.add(this.fogQuad)
+
+		this.fogCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+	}
+
+	private initComposition(): void {
+		// Create fullscreen quad for composition
+		const geometry = new THREE.PlaneGeometry(2, 2)
+		this.composeMaterial = new ComposeMaterial()
+
+		this.composeQuad = new THREE.Mesh(geometry, this.composeMaterial)
+
+		// Create scene and camera for fullscreen quad
+		this.composeScene = new THREE.Scene()
+		this.composeScene.add(this.composeQuad)
+
+		this.composeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 	}
 
 	private initTAA(): void {
@@ -371,6 +536,26 @@ export class Pipeline {
 	}
 
 	public dispose(): void {
+		// Clean up depth pass (keep it available)
+		this.depthTarget?.dispose()
+		this.depthPassMaterial?.dispose()
+		if (this.depthPassQuad) {
+			this.depthPassQuad.geometry.dispose()
+		}
+
+		// Clean up fog
+		this.fogTarget?.dispose()
+		this.fogMaterial?.dispose()
+		if (this.fogQuad) {
+			this.fogQuad.geometry.dispose()
+		}
+
+		// Clean up composition
+		this.composeMaterial?.dispose()
+		if (this.composeQuad) {
+			this.composeQuad.geometry.dispose()
+		}
+
 		// Clean up TAA
 		this.taaCurrentTarget?.dispose()
 		this.taaPreviousTarget?.dispose()

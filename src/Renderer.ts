@@ -93,6 +93,24 @@ export class Renderer {
 			this.setCubeOpacity(value)
 		})
 		cubeFolder.open()
+
+		const fogFolder = this.gui.addFolder('Fog')
+		const fogMaterial = this.pipeline.getFogMaterial()
+		if (fogMaterial) {
+			const lightMultiplierController = fogFolder.add(
+				{ lightMultiplier: fogMaterial.uniforms.lightMultiplier.value },
+				'lightMultiplier',
+				0.0,
+				10.0,
+				0.1
+			)
+			lightMultiplierController.onChange((value: number) => {
+				if (fogMaterial.uniforms.lightMultiplier) {
+					fogMaterial.uniforms.lightMultiplier.value = value
+				}
+			})
+		}
+		fogFolder.open()
 	}
 
 	private getCubeOpacity(): number {
