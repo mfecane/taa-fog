@@ -9,7 +9,7 @@ export class TAABlendSimpleMaterial extends THREE.ShaderMaterial {
 			uniforms: {
 				tCurrent: { value: null },
 				tHistory: { value: null },
-				blendFactor: { value: 0.8 }, // 0.9 = mostly history, 0.1 = mostly current
+				blendFactor: { value: 0.7 }, // 0.9 = mostly history, 0.1 = mostly current
 			},
 			vertexShader: taaBlendSimpleVert,
 			fragmentShader: taaBlendSimpleFrag,

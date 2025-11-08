@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import * as dat from 'dat.gui'
 import { ResourceLoader } from './loaders/ResourceLoader'
 import { Scene } from './Scene'
 import { Pipeline } from './Pipeline'
@@ -13,6 +14,7 @@ export class Renderer {
 	private animationFrameId: number | null = null
 	private sceneBuilder: Scene | null = null
 	private pipeline: Pipeline
+	private gui: dat.GUI | null = null
 
 	constructor(canvas: HTMLCanvasElement, resourceLoader: ResourceLoader) {
 		this.canvas = canvas
@@ -58,6 +60,56 @@ export class Renderer {
 
 		// Update pipeline targets after scene is built
 		this.pipeline.updateTargets()
+
+		// Setup dat.gui controls
+		this.setupGUI()
+	}
+
+	private setupGUI(): void {
+		this.gui = new dat.GUI()
+
+		const taaFolder = this.gui.addFolder('TAA')
+		const blendFactorController = taaFolder.add(
+			{ blendFactor: this.pipeline.getTAABlendFactor() },
+			'blendFactor',
+			0.0,
+			1.0,
+			0.01
+		)
+		blendFactorController.onChange((value: number) => {
+			this.pipeline.setTAABlendFactor(value)
+		})
+		taaFolder.open()
+
+		const cubeFolder = this.gui.addFolder('Cube')
+		const opacityController = cubeFolder.add(
+			{ opacity: this.getCubeOpacity() },
+			'opacity',
+			0.0,
+			1.0,
+			0.01
+		)
+		opacityController.onChange((value: number) => {
+			this.setCubeOpacity(value)
+		})
+		cubeFolder.open()
+	}
+
+	private getCubeOpacity(): number {
+		if (!this.sceneBuilder?.cube?.material) return 0.5
+		const material = this.sceneBuilder.cube.material
+		if (material instanceof THREE.ShaderMaterial && material.uniforms?.opacity) {
+			return material.uniforms.opacity.value
+		}
+		return 0.5
+	}
+
+	private setCubeOpacity(value: number): void {
+		if (!this.sceneBuilder?.cube?.material) return
+		const material = this.sceneBuilder.cube.material
+		if (material instanceof THREE.ShaderMaterial && material.uniforms?.opacity) {
+			material.uniforms.opacity.value = value
+		}
 	}
 
 	public start(): void {
@@ -110,6 +162,11 @@ export class Renderer {
 		// Clean up controls
 		if (this.controls) {
 			this.controls.dispose()
+		}
+
+		// Clean up GUI
+		if (this.gui) {
+			this.gui.destroy()
 		}
 
 		this.renderer.dispose()

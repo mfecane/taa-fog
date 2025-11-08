@@ -212,6 +212,16 @@ export class Pipeline {
 		this.originalProjectionMatrix.copy(this.camera.projectionMatrix)
 	}
 
+	public getTAABlendFactor(): number {
+		return this.taaBlendMaterial?.uniforms['blendFactor']?.value ?? 0.7
+	}
+
+	public setTAABlendFactor(value: number): void {
+		if (this.taaBlendMaterial?.uniforms['blendFactor']) {
+			this.taaBlendMaterial.uniforms['blendFactor'].value = value
+		}
+	}
+
 	private initTAA(): void {
 		// Create render targets for current and previous frames
 		this.taaCurrentTarget = new THREE.WebGLRenderTarget(
