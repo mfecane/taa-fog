@@ -150,6 +150,19 @@ export class Renderer {
 			})
 		}
 		fogFolder.open()
+
+		const particlesFolder = this.gui.addFolder('Particles')
+		const brightnessController = particlesFolder.add(
+			{ brightness: this.getParticleBrightness() },
+			'brightness',
+			0.0,
+			5.0,
+			0.1
+		)
+		brightnessController.onChange((value: number) => {
+			this.setParticleBrightness(value)
+		})
+		particlesFolder.open()
 	}
 
 	private getCubeOpacity(): number {
@@ -166,6 +179,16 @@ export class Renderer {
 		const material = this.sceneBuilder.cube.material
 		if (material instanceof THREE.MeshPhysicalMaterial) {
 			material.opacity = value
+		}
+	}
+
+	private getParticleBrightness(): number {
+		return this.sceneBuilder?.getParticleBrightness() ?? 1.5
+	}
+
+	private setParticleBrightness(value: number): void {
+		if (this.sceneBuilder) {
+			this.sceneBuilder.setParticleBrightness(value)
 		}
 	}
 
@@ -186,6 +209,11 @@ export class Renderer {
 		// Update controls (required when damping is enabled)
 		if (this.controls) {
 			this.controls.update()
+		}
+
+		// Update particle positions and billboard them to face camera
+		if (this.sceneBuilder) {
+			this.sceneBuilder.updateParticles(this.camera)
 		}
 
 		// Render through pipeline

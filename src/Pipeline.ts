@@ -97,19 +97,12 @@ export class Pipeline {
 			this.stochasticDepthMaterial = new StochasticDepthMaterial(downsampledWidth, downsampledHeight)
 		}
 
-		// Always update opacity and opacity map from cube material (so dithering reflects current opacity)
-		if (this.sceneBuilder!.cube && this.sceneBuilder!.cube.material instanceof THREE.MeshPhysicalMaterial) {
-			this.stochasticDepthMaterial.updateOpacity(this.sceneBuilder!.cube.material.opacity)
-			// Pass texture map (RGBA with alpha channel) to depth shader
-			const map = this.sceneBuilder!.cube.material.map
-			this.stochasticDepthMaterial.updateOpacityMap(map || null)
-		}
-
 		// Update stochastic depth material jitter
 		this.updateStochasticDepth()
 
 		// Store original materials and replace transparent materials with stochastic depth
 		const originalMaterials = new Map<THREE.Mesh, THREE.Material>()
+		const clonedMaterials: THREE.ShaderMaterial[] = []
 
 		this.sceneBuilder!.scene.traverse((object) => {
 			if (object instanceof THREE.Mesh) {
@@ -117,8 +110,16 @@ export class Pipeline {
 				if (material instanceof THREE.MeshPhysicalMaterial && material.transparent) {
 					// Store original material
 					originalMaterials.set(object, material)
+
+					// Create a new stochastic depth material instance for each object with its own opacity map
+					const objectStochasticMaterial = this.stochasticDepthMaterial!.clone()
+					objectStochasticMaterial.updateOpacity(material.opacity)
+					objectStochasticMaterial.updateOpacityMap(material.map || null)
+					objectStochasticMaterial.updateJitterIndex(this.stochasticJitterIndex)
+					clonedMaterials.push(objectStochasticMaterial)
+
 					// Replace with stochastic depth material
-					object.material = this.stochasticDepthMaterial!
+					object.material = objectStochasticMaterial
 				}
 			}
 		})
@@ -127,9 +128,12 @@ export class Pipeline {
 		this.renderer.setRenderTarget(this.depthTarget!)
 		this.renderer.render(this.sceneBuilder!.scene, this.camera)
 
-		// Restore original materials
+		// Restore original materials and dispose cloned materials
 		originalMaterials.forEach((material, mesh) => {
 			mesh.material = material
+		})
+		clonedMaterials.forEach((material) => {
+			material.dispose()
 		})
 	}
 
