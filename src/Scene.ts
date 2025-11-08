@@ -51,8 +51,8 @@ export class Scene {
 		// Create RGBA gradient from transparent (top) to opaque (bottom)
 		// Using a simple color gradient with alpha channel
 		const gradient = textureContext.createLinearGradient(0, 0, 0, textureSize)
-		gradient.addColorStop(0, 'rgba(100, 150, 200, 0)') // Transparent blue at top
-		gradient.addColorStop(1, 'rgba(100, 150, 200, 1)') // Opaque blue at bottom
+		gradient.addColorStop(0, 'rgba(150, 150, 180, 0)') // Transparent blue at top
+		gradient.addColorStop(1, 'rgba(150, 150, 180, 1)') // Opaque blue at bottom
 		textureContext.fillStyle = gradient
 		textureContext.fillRect(0, 0, textureSize, textureSize)
 
@@ -159,7 +159,7 @@ export class Scene {
 		const particleCount = 200
 		for (let i = 0; i < particleCount; i++) {
 			const particle = new THREE.Mesh(particleGeometry, particleMaterial.clone())
-			
+
 			// Random position in a sphere around the scene
 			const radius = 2 + Math.random() * 3
 			const theta = Math.random() * Math.PI * 2
@@ -189,7 +189,7 @@ export class Scene {
 			if (velocity) {
 				// Update position with random movement
 				particle.position.add(velocity)
-				
+
 				// Add some noise for more organic movement (very slow)
 				particle.position.x += Math.sin(time + particle.position.y * 10) * 0.0001
 				particle.position.y += Math.cos(time + particle.position.x * 10) * 0.0001
