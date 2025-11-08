@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import * as dat from 'dat.gui'
+import Stats from 'stats.js'
 import { ResourceLoader } from './loaders/ResourceLoader'
 import { Scene } from './Scene'
 import { Pipeline } from './Pipeline'
@@ -15,6 +16,7 @@ export class Renderer {
 	private sceneBuilder: Scene | null = null
 	private pipeline: Pipeline
 	private gui: dat.GUI | null = null
+	private stats: Stats | null = null
 
 	constructor(canvas: HTMLCanvasElement, resourceLoader: ResourceLoader) {
 		this.canvas = canvas
@@ -34,8 +36,8 @@ export class Renderer {
 		this.renderer.shadowMap.enabled = true
 		this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-		// Initialize pipeline
-		this.pipeline = new Pipeline(this.renderer, this.camera)
+		// Initialize pipeline with downsampling factor of 2
+		this.pipeline = new Pipeline(this.renderer, this.camera, 2)
 
 		// Handle window resize
 		window.addEventListener('resize', () => this.onResize())
@@ -63,23 +65,19 @@ export class Renderer {
 
 		// Setup dat.gui controls
 		this.setupGUI()
+
+		// Setup Stats.js FPS counter
+		this.setupStats()
+	}
+
+	private setupStats(): void {
+		this.stats = new Stats()
+		this.stats.showPanel(0) // 0: fps, 1: ms, 2: mb
+		document.body.appendChild(this.stats.dom)
 	}
 
 	private setupGUI(): void {
 		this.gui = new dat.GUI()
-
-		const taaFolder = this.gui.addFolder('TAA')
-		const blendFactorController = taaFolder.add(
-			{ blendFactor: this.pipeline.getTAABlendFactor() },
-			'blendFactor',
-			0.0,
-			1.0,
-			0.01
-		)
-		blendFactorController.onChange((value: number) => {
-			this.pipeline.setTAABlendFactor(value)
-		})
-		taaFolder.open()
 
 		const cubeFolder = this.gui.addFolder('Cube')
 		const opacityController = cubeFolder.add(
@@ -109,6 +107,47 @@ export class Renderer {
 					fogMaterial.uniforms.lightMultiplier.value = value
 				}
 			})
+
+			const warpSpeedController = fogFolder.add(
+				{ warpSpeed: fogMaterial.uniforms.animSpeed.value },
+				'warpSpeed',
+				0.0,
+				2.0,
+				0.01
+			)
+			warpSpeedController.onChange((value: number) => {
+				if (fogMaterial.uniforms.animSpeed) {
+					fogMaterial.uniforms.animSpeed.value = value
+				}
+			})
+		}
+
+		const fogBlendMaterial = this.pipeline.getFogBlendMaterial()
+		if (fogBlendMaterial) {
+			const blendFactorController = fogFolder.add(
+				{ blendFactor: this.pipeline.getFogBlendFactor() },
+				'blendFactor',
+				0.0,
+				1.0,
+				0.01
+			)
+			blendFactorController.onChange((value: number) => {
+				this.pipeline.setFogBlendFactor(value)
+			})
+		}
+
+		const composeMaterial = this.pipeline.getComposeMaterial()
+		if (composeMaterial) {
+			const fogBlurController = fogFolder.add(
+				{ fogBlur: this.pipeline.getFogBlurRadius() },
+				'fogBlur',
+				0.0,
+				10.0,
+				0.1
+			)
+			fogBlurController.onChange((value: number) => {
+				this.pipeline.setFogBlurRadius(value)
+			})
 		}
 		fogFolder.open()
 	}
@@ -116,8 +155,8 @@ export class Renderer {
 	private getCubeOpacity(): number {
 		if (!this.sceneBuilder?.cube?.material) return 0.5
 		const material = this.sceneBuilder.cube.material
-		if (material instanceof THREE.ShaderMaterial && material.uniforms?.opacity) {
-			return material.uniforms.opacity.value
+		if (material instanceof THREE.MeshPhysicalMaterial) {
+			return material.opacity
 		}
 		return 0.5
 	}
@@ -125,8 +164,8 @@ export class Renderer {
 	private setCubeOpacity(value: number): void {
 		if (!this.sceneBuilder?.cube?.material) return
 		const material = this.sceneBuilder.cube.material
-		if (material instanceof THREE.ShaderMaterial && material.uniforms?.opacity) {
-			material.uniforms.opacity.value = value
+		if (material instanceof THREE.MeshPhysicalMaterial) {
+			material.opacity = value
 		}
 	}
 
@@ -139,6 +178,11 @@ export class Renderer {
 	}
 
 	public render(): void {
+		// Update Stats.js
+		if (this.stats) {
+			this.stats.begin()
+		}
+
 		// Update controls (required when damping is enabled)
 		if (this.controls) {
 			this.controls.update()
@@ -146,6 +190,11 @@ export class Renderer {
 
 		// Render through pipeline
 		this.pipeline.render()
+
+		// End Stats.js measurement
+		if (this.stats) {
+			this.stats.end()
+		}
 	}
 
 	private onResize(): void {

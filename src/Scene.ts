@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { StochasticTransparencyMaterial } from './materials/StochasticTransparencyMaterial'
 
 export class Scene {
 	public scene: THREE.Scene
@@ -40,10 +39,34 @@ export class Scene {
 		this.floor.receiveShadow = true
 		this.scene.add(this.floor)
 
-		// Cube with stochastic transparency (TAA-based, not Three.js default)
-		const cubeGeometry = new THREE.BoxGeometry(this.cubeSize, this.cubeSize, this.cubeSize)
-		const cubeMaterial = this.createStochasticTransparencyMaterial()
-		this.cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
+		// Create RGBA texture with alpha channel (transparent on top, opaque on bottom)
+		const textureSize = 256
+		const textureCanvas = document.createElement('canvas')
+		textureCanvas.width = textureSize
+		textureCanvas.height = textureSize
+		const textureContext = textureCanvas.getContext('2d')!
+
+		// Create RGBA gradient from transparent (top) to opaque (bottom)
+		// Using a simple color gradient with alpha channel
+		const gradient = textureContext.createLinearGradient(0, 0, 0, textureSize)
+		gradient.addColorStop(0, 'rgba(100, 150, 200, 0)') // Transparent blue at top
+		gradient.addColorStop(1, 'rgba(100, 150, 200, 1)') // Opaque blue at bottom
+		textureContext.fillStyle = gradient
+		textureContext.fillRect(0, 0, textureSize, textureSize)
+
+		const rgbaTexture = new THREE.CanvasTexture(textureCanvas)
+		rgbaTexture.needsUpdate = true
+
+		// Cylinder with MeshPhysicalMaterial (stretched 50% along Y axis)
+		const cylinderRadius = this.cubeSize / 2
+		const cylinderHeight = this.cubeSize * 1.5 // 50% stretch
+		const cylinderGeometry = new THREE.CylinderGeometry(cylinderRadius, cylinderRadius, cylinderHeight, 32)
+		const cylinderMaterial = new THREE.MeshPhysicalMaterial({
+			opacity: 1.0, // Use full opacity since texture alpha channel controls it
+			transparent: true,
+			map: rgbaTexture, // Use map with alpha channel instead of alphaMap
+		})
+		this.cube = new THREE.Mesh(cylinderGeometry, cylinderMaterial)
 		this.cube.position.set(0, this.cubePositionY, 0)
 		this.cube.castShadow = true
 		this.cube.receiveShadow = true
@@ -88,15 +111,6 @@ export class Scene {
 		this.scene.add(this.shadowHelper)
 	}
 
-	private createStochasticTransparencyMaterial(): StochasticTransparencyMaterial {
-		// Material that uses alpha testing for stochastic transparency
-		// Transparency is achieved through TAA accumulation, not traditional alpha blending
-		return new StochasticTransparencyMaterial(
-			this.renderWidth,
-			this.renderHeight,
-			this.bayerMatrixSize
-		)
-	}
 
 	public dispose(): void {
 		if (this.axesHelper) this.scene.remove(this.axesHelper)

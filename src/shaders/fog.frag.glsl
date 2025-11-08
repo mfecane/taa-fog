@@ -18,6 +18,7 @@ uniform float maxFogDistance;              // clamp for tiny scene, e.g. 2.0
 uniform vec3 fogSphereCenter;              // Fog volume sphere center
 uniform float fogSphereRadius;             // Fog volume sphere radius
 uniform float time;
+uniform float animSpeed;                   // Animation speed (warp speed)
 
 uniform vec3 lightDirection;               // normalized dir FROM light TO scene (i.e. -DirectionalLight.worldDirection)
 uniform vec3 lightColor;
@@ -72,7 +73,6 @@ float domainWarpedNoise(vec3 p) {
     float baseScale = 2.5;
     float warpScale = 4.0;
     float warpStrength = 0.4;
-    float animSpeed = 0.4;
 
     vec3 q = p * warpScale + vec3(time * 0.3, time * 0.25, time * 0.2);
     vec3 warp = vec3(
@@ -213,13 +213,22 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float maxDist) {
     float opticalDepth = 0.0;
     vec3 scatteredLight = vec3(0.0);
 
-    float g = 0.3; // forward scattering
+    float g = 0.7; // forward scattering
 
     for (int i = 0; i < FOG_STEPS; i++) {
-        float t = fogStart + (float(i) + 0.5) * tStep;
-        if (t > fogEnd) break;
-
-        vec3 worldPos = ro + rd * t;
+        float t = fogStart + float(i) * tStep;
+        float tNext = fogStart + (float(i) + 1.0) * tStep;
+        
+        // Clamp step to depth buffer boundary if it would exceed it
+        float actualStepEnd = min(tNext, maxDist);
+        float actualStepStart = max(t, fogStart);
+        float actualStepSize = actualStepEnd - actualStepStart;
+        
+        if (actualStepSize <= 0.0 || actualStepStart >= maxDist) break;
+        
+        // Sample at the center of the actual step
+        float tSample = actualStepStart + actualStepSize * 0.5;
+        vec3 worldPos = ro + rd * tSample;
 
         // Double-check we're inside sphere (safety check)
         float distToCenter = length(worldPos - fogSphereCenter);
@@ -230,7 +239,8 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float maxDist) {
         float n = domainWarpedNoise(worldPos);
         float localDensity = fogDensity * pow(n, 0.7);
 
-        opticalDepth += localDensity * tStep;
+        // Contributions are automatically scaled by using actualStepSize instead of tStep
+        opticalDepth += localDensity * actualStepSize;
 
         // Light scattering (directional)
         vec3 L = normalize(lightDirection);       // FROM light TO scene
@@ -243,7 +253,7 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float maxDist) {
 
         float Tr = exp(-opticalDepth);           // transmittance from camera to sample
 
-        scatteredLight += Tr * localDensity * Li * phase * tStep;
+        scatteredLight += Tr * localDensity * Li * phase * actualStepSize;
     }
 
     // Alpha from extinction, not brightness hack

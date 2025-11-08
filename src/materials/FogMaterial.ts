@@ -30,10 +30,11 @@ export class FogMaterial extends THREE.ShaderMaterial {
 				fogSphereCenter: { value: new THREE.Vector3(0, 1, 0) }, // Sphere center
 				fogSphereRadius: { value: 7.1 }, // Sphere radius
 				time: { value: 0.0 },
+				animSpeed: { value: 0.4 }, // Animation speed (warp speed)
 				lightDirection: { value: new THREE.Vector3(0, -1, 0) }, // normalized direction FROM light TO scene
 				lightColor: { value: new THREE.Vector3(1, 1, 1) },
 				lightIntensity: { value: 3.0 }, // Increased default intensity for more visible fog
-				lightMultiplier: { value: 4.0 }, // Additional multiplier for fine-tuning
+				lightMultiplier: { value: 2.0 }, // Additional multiplier for fine-tuning
 				// Three.js shadow mapping uniforms (from shadowmap_pars_fragment)
 				shadowMap: { value: null },
 				shadowMapSize: { value: new THREE.Vector2(2048, 2048) },
