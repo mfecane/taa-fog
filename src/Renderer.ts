@@ -101,9 +101,6 @@ export class Renderer {
 	}
 
 	private applySettings(): void {
-		// Apply cube opacity
-		this.setCubeOpacity(this.settings.getCubeOpacity())
-
 		// Apply fog settings
 		const fogMaterial = this.pipeline.getFogMaterial()
 		if (fogMaterial) {
@@ -115,6 +112,9 @@ export class Renderer {
 			}
 			if (fogMaterial.uniforms.fogSteps) {
 				fogMaterial.uniforms.fogSteps.value = this.settings.getFogSteps()
+			}
+			if (fogMaterial.uniforms.rayNoiseScale) {
+				fogMaterial.uniforms.rayNoiseScale.value = this.settings.getRayNoiseScale()
 			}
 		}
 
@@ -132,14 +132,6 @@ export class Renderer {
 			} catch (error) {
 				console.warn('Failed to save settings to IndexedDB:', error)
 			}
-		}
-	}
-
-	private setCubeOpacity(value: number): void {
-		if (!this.sceneBuilder?.cube?.material) return
-		const material = this.sceneBuilder.cube.material
-		if (material instanceof THREE.MeshPhysicalMaterial) {
-			material.opacity = value
 		}
 	}
 

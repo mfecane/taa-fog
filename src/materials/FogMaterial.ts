@@ -33,14 +33,15 @@ export class FogMaterial extends THREE.ShaderMaterial {
 				lightDirection: { value: new THREE.Vector3(0, -1, 0) }, // normalized direction FROM light TO scene
 				lightColor: { value: new THREE.Vector3(1, 1, 1) },
 				lightIntensity: { value: 3.0 }, // Increased default intensity for more visible fog
-				lightMultiplier: { value: 2.0 }, // Additional multiplier for fine-tuning
+				lightMultiplier: { value: 0.9 }, // Additional multiplier for fine-tuning
 				// Three.js shadow mapping uniforms (from shadowmap_pars_fragment)
 				shadowMap: { value: null },
 				shadowMapSize: { value: new THREE.Vector2(2048, 2048) },
 				shadowIntensity: { value: 1.0 },
 				shadowBias: { value: 0.0 },
 				shadowRadius: { value: 1.0 },
-				fogSteps: { value: 128.0 },
+				fogSteps: { value: 55.0 },
+				rayNoiseScale: { value: 0.012 },
 			},
 			vertexShader: fogVert,
 			fragmentShader: fogFrag,

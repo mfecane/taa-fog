@@ -11,7 +11,7 @@ export class Scene {
 	public shadowHelper: THREE.CameraHelper | null = null
 	public particles: THREE.Mesh[] = []
 	private showHelpers: boolean = false
-	private particleBrightness: number = 1.5
+	private particleBrightness: number = 0.3
 
 	// Size variables - 4x smaller than screen
 	// @ts-ignore - Reserved for future use

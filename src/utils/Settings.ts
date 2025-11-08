@@ -5,15 +5,13 @@ import { Scene } from '../Scene'
 import { SettingsStorage } from './SettingsStorage'
 
 export interface SettingsData {
-	cube: {
-		opacity: number
-	}
 	fog: {
 		lightMultiplier: number
 		warpSpeed: number
 		blendFactor: number
 		fogBlur: number
 		fogSteps: number
+		rayNoiseScale: number
 	}
 	particles: {
 		brightness: number
@@ -30,18 +28,16 @@ export class Settings {
 
 	static getDefaults(): SettingsData {
 		return {
-			cube: {
-				opacity: 0.5,
-			},
 			fog: {
-				lightMultiplier: 2.0,
+				lightMultiplier: 0.9,
 				warpSpeed: 0.4,
-				blendFactor: 0.7,
+				blendFactor: 0.75,
 				fogBlur: 2.0,
-				fogSteps: 128,
+				fogSteps: 55,
+				rayNoiseScale: 0.012,
 			},
 			particles: {
-				brightness: 1.5,
+				brightness: 0.3,
 			},
 		}
 	}
@@ -52,9 +48,6 @@ export class Settings {
 
 	setData(data: Partial<SettingsData>): void {
 		this.data = { ...this.data, ...data }
-		if (data.cube) {
-			this.data.cube = { ...this.data.cube, ...data.cube }
-		}
 		if (data.fog) {
 			const defaultFog = Settings.getDefaults().fog
 			this.data.fog = { ...defaultFog, ...this.data.fog, ...data.fog }
@@ -62,15 +55,6 @@ export class Settings {
 		if (data.particles) {
 			this.data.particles = { ...this.data.particles, ...data.particles }
 		}
-	}
-
-	// Cube
-	getCubeOpacity(): number {
-		return this.data.cube.opacity
-	}
-
-	setCubeOpacity(value: number): void {
-		this.data.cube.opacity = value
 	}
 
 	// Fog
@@ -114,6 +98,14 @@ export class Settings {
 		this.data.fog.fogSteps = value
 	}
 
+	getRayNoiseScale(): number {
+		return this.data.fog.rayNoiseScale
+	}
+
+	setRayNoiseScale(value: number): void {
+		this.data.fog.rayNoiseScale = value
+	}
+
 	// Particles
 	getParticleBrightness(): number {
 		return this.data.particles.brightness
@@ -130,21 +122,6 @@ export class Settings {
 	): void {
 		this.gui = new dat.GUI()
 
-		const cubeFolder = this.gui.addFolder('Cube')
-		const opacityController = cubeFolder.add(
-			{ opacity: this.getCubeOpacity() },
-			'opacity',
-			0.0,
-			1.0,
-			0.01
-		)
-		opacityController.onChange((value: number) => {
-			this.setCubeOpacity(value)
-			this.setCubeOpacityInScene(scene, value)
-			this.saveSettings(settingsStorage)
-		})
-		cubeFolder.open()
-
 		const fogFolder = this.gui.addFolder('Fog')
 		const fogMaterial = pipeline.getFogMaterial()
 		if (fogMaterial) {
@@ -152,7 +129,7 @@ export class Settings {
 				{ lightMultiplier: this.getFogLightMultiplier() },
 				'lightMultiplier',
 				0.0,
-				10.0,
+				2.0,
 				0.1
 			)
 			lightMultiplierController.onChange((value: number) => {
@@ -167,7 +144,7 @@ export class Settings {
 				{ warpSpeed: this.getFogWarpSpeed() },
 				'warpSpeed',
 				0.0,
-				2.0,
+				1.0,
 				0.01
 			)
 			warpSpeedController.onChange((value: number) => {
@@ -181,14 +158,29 @@ export class Settings {
 			const fogStepsController = fogFolder.add(
 				{ fogSteps: this.getFogSteps() },
 				'fogSteps',
-				8,
-				256,
+				16,
+				128,
 				1
 			)
 			fogStepsController.onChange((value: number) => {
 				this.setFogSteps(value)
 				if (fogMaterial.uniforms.fogSteps) {
 					fogMaterial.uniforms.fogSteps.value = value
+				}
+				this.saveSettings(settingsStorage)
+			})
+
+			const rayNoiseScaleController = fogFolder.add(
+				{ rayNoiseScale: this.getRayNoiseScale() },
+				'rayNoiseScale',
+				0.001,
+				0.03,
+				0.001
+			)
+			rayNoiseScaleController.onChange((value: number) => {
+				this.setRayNoiseScale(value)
+				if (fogMaterial.uniforms.rayNoiseScale) {
+					fogMaterial.uniforms.rayNoiseScale.value = value
 				}
 				this.saveSettings(settingsStorage)
 			})
@@ -216,7 +208,7 @@ export class Settings {
 				{ fogBlur: this.getFogBlur() },
 				'fogBlur',
 				0.0,
-				10.0,
+				5.0,
 				0.1
 			)
 			fogBlurController.onChange((value: number) => {
@@ -232,7 +224,7 @@ export class Settings {
 			{ brightness: this.getParticleBrightness() },
 			'brightness',
 			0.0,
-			5.0,
+			1.0,
 			0.1
 		)
 		brightnessController.onChange((value: number) => {
@@ -241,14 +233,6 @@ export class Settings {
 			this.saveSettings(settingsStorage)
 		})
 		particlesFolder.open()
-	}
-
-	private setCubeOpacityInScene(scene: Scene, value: number): void {
-		if (!scene.cube?.material) return
-		const material = scene.cube.material
-		if (material instanceof THREE.MeshPhysicalMaterial) {
-			material.opacity = value
-		}
 	}
 
 	private async saveSettings(settingsStorage: SettingsStorage | null): Promise<void> {

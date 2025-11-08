@@ -32,6 +32,7 @@ uniform float shadowIntensity;
 uniform float shadowBias;
 uniform float shadowRadius;
 uniform float fogSteps;
+uniform float rayNoiseScale;
 
 varying vec2 vUv;
 
@@ -139,8 +140,7 @@ float rand(vec2 n) {
 }
 
 vec3 rayNoise(vec3 n) {
-    float scale = 0.1;
-    return scale * (vec3(rand(n.xy), rand(n.yz), rand(n.zx)) - vec3(0.5));
+    return rayNoiseScale * (vec3(rand(n.xy), rand(n.yz), rand(n.zx)) - vec3(0.5));
 }
 
 // Ray-sphere intersection to find entry and exit points
@@ -215,7 +215,7 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float maxDist) {
     vec3 scatteredLight = vec3(0.0);
 
     // Isotropic scattering to make fog brightness more view-angle uniform
-    float g = 0.2;
+    float g = 0.1;
 
     for (int i = 0; i < int(fogSteps); i++) {
         float t = fogStart + float(i) * tStep;
