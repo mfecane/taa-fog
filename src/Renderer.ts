@@ -5,6 +5,8 @@ import Stats from 'stats.js'
 import { ResourceLoader } from './loaders/ResourceLoader'
 import { Scene } from './Scene'
 import { Pipeline } from './Pipeline'
+import { Settings } from './utils/Settings'
+import { SettingsStorage } from './utils/SettingsStorage'
 
 export class Renderer {
 	private canvas: HTMLCanvasElement
@@ -18,6 +20,8 @@ export class Renderer {
 	private pipeline: Pipeline
 	private gui: dat.GUI | null = null
 	private stats: Stats | null = null
+	private settings: Settings
+	private settingsStorage: SettingsStorage | null = null
 
 	constructor(canvas: HTMLCanvasElement, resourceLoader: ResourceLoader) {
 		this.canvas = canvas
@@ -40,11 +44,25 @@ export class Renderer {
 		// Initialize pipeline with downsampling factor of 2
 		this.pipeline = new Pipeline(this.renderer, this.camera)
 
+		// Initialize settings
+		this.settings = new Settings()
+
 		// Handle window resize
 		window.addEventListener('resize', () => this.onResize())
 	}
 
-	public init(): void {
+	public async init(): Promise<void> {
+		// Load settings from IndexedDB
+		try {
+			this.settingsStorage = await SettingsStorage.getInstance()
+			const savedSettings = await this.settingsStorage.load()
+			if (savedSettings) {
+				this.settings.setData(savedSettings)
+			}
+		} catch (error) {
+			console.warn('Failed to load settings from IndexedDB:', error)
+		}
+
 		// Build scene using SceneBuilder
 		this.sceneBuilder = new Scene()
 		this.sceneBuilder.build()
@@ -64,6 +82,9 @@ export class Renderer {
 		// Update pipeline targets after scene is built
 		this.pipeline.updateTargets()
 
+		// Apply loaded settings
+		this.applySettings()
+
 		// Setup dat.gui controls
 		this.setupGUI()
 
@@ -82,14 +103,16 @@ export class Renderer {
 
 		const cubeFolder = this.gui.addFolder('Cube')
 		const opacityController = cubeFolder.add(
-			{ opacity: this.getCubeOpacity() },
+			{ opacity: this.settings.getCubeOpacity() },
 			'opacity',
 			0.0,
 			1.0,
 			0.01
 		)
 		opacityController.onChange((value: number) => {
+			this.settings.setCubeOpacity(value)
 			this.setCubeOpacity(value)
+			this.saveSettings()
 		})
 		cubeFolder.open()
 
@@ -97,82 +120,115 @@ export class Renderer {
 		const fogMaterial = this.pipeline.getFogMaterial()
 		if (fogMaterial) {
 			const lightMultiplierController = fogFolder.add(
-				{ lightMultiplier: fogMaterial.uniforms.lightMultiplier.value },
+				{ lightMultiplier: this.settings.getFogLightMultiplier() },
 				'lightMultiplier',
 				0.0,
 				10.0,
 				0.1
 			)
 			lightMultiplierController.onChange((value: number) => {
+				this.settings.setFogLightMultiplier(value)
 				if (fogMaterial.uniforms.lightMultiplier) {
 					fogMaterial.uniforms.lightMultiplier.value = value
 				}
+				this.saveSettings()
 			})
 
 			const warpSpeedController = fogFolder.add(
-				{ warpSpeed: fogMaterial.uniforms.animSpeed.value },
+				{ warpSpeed: this.settings.getFogWarpSpeed() },
 				'warpSpeed',
 				0.0,
 				2.0,
 				0.01
 			)
 			warpSpeedController.onChange((value: number) => {
+				this.settings.setFogWarpSpeed(value)
 				if (fogMaterial.uniforms.animSpeed) {
 					fogMaterial.uniforms.animSpeed.value = value
 				}
+				this.saveSettings()
 			})
 		}
 
 		const fogBlendMaterial = this.pipeline.getFogBlendMaterial()
 		if (fogBlendMaterial) {
 			const blendFactorController = fogFolder.add(
-				{ blendFactor: this.pipeline.getFogBlendFactor() },
+				{ blendFactor: this.settings.getFogBlendFactor() },
 				'blendFactor',
 				0.0,
 				1.0,
 				0.01
 			)
 			blendFactorController.onChange((value: number) => {
+				this.settings.setFogBlendFactor(value)
 				this.pipeline.setFogBlendFactor(value)
+				this.saveSettings()
 			})
 		}
 
 		const composeMaterial = this.pipeline.getComposeMaterial()
 		if (composeMaterial) {
 			const fogBlurController = fogFolder.add(
-				{ fogBlur: this.pipeline.getFogBlurRadius() },
+				{ fogBlur: this.settings.getFogBlur() },
 				'fogBlur',
 				0.0,
 				10.0,
 				0.1
 			)
 			fogBlurController.onChange((value: number) => {
+				this.settings.setFogBlur(value)
 				this.pipeline.setFogBlurRadius(value)
+				this.saveSettings()
 			})
 		}
 		fogFolder.open()
 
 		const particlesFolder = this.gui.addFolder('Particles')
 		const brightnessController = particlesFolder.add(
-			{ brightness: this.getParticleBrightness() },
+			{ brightness: this.settings.getParticleBrightness() },
 			'brightness',
 			0.0,
 			5.0,
 			0.1
 		)
 		brightnessController.onChange((value: number) => {
+			this.settings.setParticleBrightness(value)
 			this.setParticleBrightness(value)
+			this.saveSettings()
 		})
 		particlesFolder.open()
 	}
 
-	private getCubeOpacity(): number {
-		if (!this.sceneBuilder?.cube?.material) return 0.5
-		const material = this.sceneBuilder.cube.material
-		if (material instanceof THREE.MeshPhysicalMaterial) {
-			return material.opacity
+	private applySettings(): void {
+		// Apply cube opacity
+		this.setCubeOpacity(this.settings.getCubeOpacity())
+
+		// Apply fog settings
+		const fogMaterial = this.pipeline.getFogMaterial()
+		if (fogMaterial) {
+			if (fogMaterial.uniforms.lightMultiplier) {
+				fogMaterial.uniforms.lightMultiplier.value = this.settings.getFogLightMultiplier()
+			}
+			if (fogMaterial.uniforms.animSpeed) {
+				fogMaterial.uniforms.animSpeed.value = this.settings.getFogWarpSpeed()
+			}
 		}
-		return 0.5
+
+		this.pipeline.setFogBlendFactor(this.settings.getFogBlendFactor())
+		this.pipeline.setFogBlurRadius(this.settings.getFogBlur())
+
+		// Apply particle brightness
+		this.setParticleBrightness(this.settings.getParticleBrightness())
+	}
+
+	private async saveSettings(): Promise<void> {
+		if (this.settingsStorage) {
+			try {
+				await this.settingsStorage.save(this.settings)
+			} catch (error) {
+				console.warn('Failed to save settings to IndexedDB:', error)
+			}
+		}
 	}
 
 	private setCubeOpacity(value: number): void {
@@ -181,10 +237,6 @@ export class Renderer {
 		if (material instanceof THREE.MeshPhysicalMaterial) {
 			material.opacity = value
 		}
-	}
-
-	private getParticleBrightness(): number {
-		return this.sceneBuilder?.getParticleBrightness() ?? 1.5
 	}
 
 	private setParticleBrightness(value: number): void {

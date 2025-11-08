@@ -25,7 +25,7 @@ class App {
       await this.resourceLoader.loadAll();
 
       // Initialize renderer
-      this.renderer.init();
+      await this.renderer.init();
 
       // Start render loop
       this.renderer.start();
