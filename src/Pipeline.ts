@@ -26,29 +26,45 @@ export class Pipeline {
 	private fogMaterial: FogMaterial | null = null
 	private fogBlendMaterial: FogBlendMaterial | null = null
 	private fogQuad: THREE.Mesh | null = null
-	private fogScene: THREE.Scene | null = null
 	private fogCamera: THREE.OrthographicCamera | null = null
 	private fogBlendQuad: THREE.Mesh | null = null
-	private fogBlendScene: THREE.Scene | null = null
 	private fogBlendCamera: THREE.OrthographicCamera | null = null
 	private fogFirstFrame: boolean = true
 
 	// Composition (full resolution)
 	private composeMaterial: ComposeMaterial | null = null
 	private composeQuad: THREE.Mesh | null = null
-	private composeScene: THREE.Scene | null = null
 	private composeCamera: THREE.OrthographicCamera | null = null
 
 	// Debug depth display
 	private depthPassMaterial: DepthPassMaterial | null = null
-	private depthPassQuad: THREE.Mesh | null = null
-	private depthPassScene: THREE.Scene | null = null
+	// @ts-ignore - Reserved for future debug depth rendering
+	private _depthPassQuad: THREE.Mesh | null = null
+
+	// Shared fullscreen triangle geometry
+	private fullscreenTriangle: THREE.BufferGeometry
 
 	private startTime: number = Date.now()
 
-	constructor(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera, private downsamplingFactor: number = 1) {
+	constructor(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera, private downsamplingFactor: number = 2) {
 		this.renderer = renderer
 		this.camera = camera
+
+		// Create shared fullscreen triangle geometry
+		// Triangle vertices extend beyond [-1, 1] to cover entire screen
+		const positions = new Float32Array([
+			-1, -1, 0,  // bottom-left
+			3, -1, 0,   // extends far right
+			-1, 3, 0    // extends far up
+		])
+		const uvs = new Float32Array([
+			0, 0,  // bottom-left
+			2, 0,  // right
+			0, 2   // top
+		])
+		this.fullscreenTriangle = new THREE.BufferGeometry()
+		this.fullscreenTriangle.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+		this.fullscreenTriangle.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
 
 		// Initialize buffers
 		this.initColorBuffer()
@@ -158,7 +174,7 @@ export class Pipeline {
 		this.renderer.setRenderTarget(this.fogCurrentTarget!)
 		this.renderer.setClearColor(0x000000, 0.0)
 		this.renderer.clear()
-		this.renderer.render(this.fogScene!, this.fogCamera!)
+		this.renderer.render(this.fogQuad!, this.fogCamera!)
 	}
 
 	private blendFog(): void {
@@ -180,7 +196,7 @@ export class Pipeline {
 
 		// Blend current and history, write to blended target
 		this.renderer.setRenderTarget(this.fogBlendedTarget!)
-		this.renderer.render(this.fogBlendScene!, this.fogBlendCamera!)
+		this.renderer.render(this.fogBlendQuad!, this.fogBlendCamera!)
 
 		// Swap history and blended for next frame (ping-pong)
 		const temp = this.fogHistoryTarget
@@ -197,7 +213,7 @@ export class Pipeline {
 
 		// Render to screen (full resolution)
 		this.renderer.setRenderTarget(null)
-		this.renderer.render(this.composeScene!, this.composeCamera!)
+		this.renderer.render(this.composeQuad!, this.composeCamera!)
 	}
 
 	private updateStochasticDepth(): void {
@@ -350,54 +366,39 @@ export class Pipeline {
 			type: THREE.UnsignedByteType,
 		})
 
-		// Create fullscreen quad for fog
-		const geometry = new THREE.PlaneGeometry(2, 2)
+		// Create fullscreen triangle for fog
 		this.fogMaterial = new FogMaterial(downsampledWidth, downsampledHeight, this.camera)
 
-		this.fogQuad = new THREE.Mesh(geometry, this.fogMaterial)
+		this.fogQuad = new THREE.Mesh(this.fullscreenTriangle, this.fogMaterial)
 
-		// Create scene and camera for fullscreen quad
-		this.fogScene = new THREE.Scene()
-		this.fogScene.add(this.fogQuad)
-
+		// Create camera for fullscreen quad
 		this.fogCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
-		// Create fog blend material and quad
+		// Create fog blend material and triangle
 		this.fogBlendMaterial = new FogBlendMaterial()
-		this.fogBlendQuad = new THREE.Mesh(geometry, this.fogBlendMaterial)
-
-		this.fogBlendScene = new THREE.Scene()
-		this.fogBlendScene.add(this.fogBlendQuad)
+		this.fogBlendQuad = new THREE.Mesh(this.fullscreenTriangle, this.fogBlendMaterial)
 
 		this.fogBlendCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 	}
 
 	private initComposition(): void {
-		// Create fullscreen quad for composition
-		const geometry = new THREE.PlaneGeometry(2, 2)
+		// Create fullscreen triangle for composition
 		this.composeMaterial = new ComposeMaterial(window.innerWidth, window.innerHeight)
 
-		this.composeQuad = new THREE.Mesh(geometry, this.composeMaterial)
+		this.composeQuad = new THREE.Mesh(this.fullscreenTriangle, this.composeMaterial)
 
-		// Create scene and camera for fullscreen quad
-		this.composeScene = new THREE.Scene()
-		this.composeScene.add(this.composeQuad)
-
+		// Create camera for fullscreen quad
 		this.composeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 	}
 
 	private initDebugDepth(): void {
-		// Create fullscreen quad for depth visualization
-		const geometry = new THREE.PlaneGeometry(2, 2)
+		// Create fullscreen triangle for depth visualization
 		const downsampledWidth = Math.floor(window.innerWidth / this.downsamplingFactor)
 		const downsampledHeight = Math.floor(window.innerHeight / this.downsamplingFactor)
 		this.depthPassMaterial = new DepthPassMaterial(downsampledWidth, downsampledHeight)
 
-		this.depthPassQuad = new THREE.Mesh(geometry, this.depthPassMaterial)
-
-		// Create scene and camera for fullscreen quad
-		this.depthPassScene = new THREE.Scene()
-		this.depthPassScene.add(this.depthPassQuad)
+		// Reserved for future debug depth rendering
+		this._depthPassQuad = new THREE.Mesh(this.fullscreenTriangle, this.depthPassMaterial)
 
 		// Camera created but not currently used - reserved for future debug depth rendering
 		// this._depthPassCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
@@ -417,23 +418,14 @@ export class Pipeline {
 		this.fogBlendedTarget?.dispose()
 		this.fogMaterial?.dispose()
 		this.fogBlendMaterial?.dispose()
-		if (this.fogQuad) {
-			this.fogQuad.geometry.dispose()
-		}
-		if (this.fogBlendQuad) {
-			this.fogBlendQuad.geometry.dispose()
-		}
 
 		// Clean up composition
 		this.composeMaterial?.dispose()
-		if (this.composeQuad) {
-			this.composeQuad.geometry.dispose()
-		}
 
 		// Clean up debug depth
 		this.depthPassMaterial?.dispose()
-		if (this.depthPassQuad) {
-			this.depthPassQuad.geometry.dispose()
-		}
+
+		// Clean up shared fullscreen triangle geometry
+		this.fullscreenTriangle.dispose()
 	}
 }

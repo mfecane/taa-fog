@@ -1,10 +1,12 @@
-import * as THREE from 'three'
 import * as dat from 'dat.gui'
 import { Pipeline } from '../Pipeline'
 import { Scene } from '../Scene'
 import { SettingsStorage } from './SettingsStorage'
 
 export interface SettingsData {
+	render: {
+		downsampling: number
+	}
 	fog: {
 		lightMultiplier: number
 		warpSpeed: number
@@ -28,6 +30,9 @@ export class Settings {
 
 	static getDefaults(): SettingsData {
 		return {
+			render: {
+				downsampling: 2,
+			},
 			fog: {
 				lightMultiplier: 0.9,
 				warpSpeed: 0.4,
@@ -48,6 +53,10 @@ export class Settings {
 
 	setData(data: Partial<SettingsData>): void {
 		this.data = { ...this.data, ...data }
+		if (data.render) {
+			const defaultRender = Settings.getDefaults().render
+			this.data.render = { ...defaultRender, ...this.data.render, ...data.render }
+		}
 		if (data.fog) {
 			const defaultFog = Settings.getDefaults().fog
 			this.data.fog = { ...defaultFog, ...this.data.fog, ...data.fog }
@@ -55,6 +64,15 @@ export class Settings {
 		if (data.particles) {
 			this.data.particles = { ...this.data.particles, ...data.particles }
 		}
+	}
+
+	// Render
+	getDownsampling(): number {
+		return this.data.render.downsampling
+	}
+
+	setDownsampling(value: number): void {
+		this.data.render.downsampling = value
 	}
 
 	// Fog
@@ -121,6 +139,19 @@ export class Settings {
 		settingsStorage: SettingsStorage | null
 	): void {
 		this.gui = new dat.GUI()
+
+		const renderFolder = this.gui.addFolder('Render')
+		const downsamplingController = renderFolder.add(
+			{ downsampling: this.getDownsampling() },
+			'downsampling',
+			[1, 2, 4]
+		)
+		downsamplingController.onChange((value: number) => {
+			this.setDownsampling(value)
+			pipeline.setDownsamplingFactor(value)
+			this.saveSettings(settingsStorage)
+		})
+		renderFolder.open()
 
 		const fogFolder = this.gui.addFolder('Fog')
 		const fogMaterial = pipeline.getFogMaterial()

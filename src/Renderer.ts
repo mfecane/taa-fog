@@ -101,6 +101,9 @@ export class Renderer {
 	}
 
 	private applySettings(): void {
+		// Apply render settings
+		this.pipeline.setDownsamplingFactor(this.settings.getDownsampling())
+
 		// Apply fog settings
 		const fogMaterial = this.pipeline.getFogMaterial()
 		if (fogMaterial) {
@@ -123,16 +126,6 @@ export class Renderer {
 
 		// Apply particle brightness
 		this.setParticleBrightness(this.settings.getParticleBrightness())
-	}
-
-	private async saveSettings(): Promise<void> {
-		if (this.settingsStorage) {
-			try {
-				await this.settingsStorage.save(this.settings)
-			} catch (error) {
-				console.warn('Failed to save settings to IndexedDB:', error)
-			}
-		}
 	}
 
 	private setParticleBrightness(value: number): void {
