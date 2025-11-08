@@ -3,7 +3,7 @@ import taaBlendSimpleVert from '../shaders/taaBlendSimple.vert.glsl?raw'
 import taaBlendSimpleFrag from '../shaders/taaBlendSimple.frag.glsl?raw'
 
 export class TAABlendSimpleMaterial extends THREE.ShaderMaterial {
-	public constructor(width: number, height: number) {
+	public constructor(_width: number, _height: number) {
 		// Simple TAA blending - just blend history and current frame
 		super({
 			uniforms: {

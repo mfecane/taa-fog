@@ -43,7 +43,6 @@ export class Pipeline {
 	private depthPassMaterial: DepthPassMaterial | null = null
 	private depthPassQuad: THREE.Mesh | null = null
 	private depthPassScene: THREE.Scene | null = null
-	private depthPassCamera: THREE.OrthographicCamera | null = null
 
 	private startTime: number = Date.now()
 
@@ -400,7 +399,8 @@ export class Pipeline {
 		this.depthPassScene = new THREE.Scene()
 		this.depthPassScene.add(this.depthPassQuad)
 
-		this.depthPassCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+		// Camera created but not currently used - reserved for future debug depth rendering
+		// this._depthPassCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 	}
 
 	public dispose(): void {

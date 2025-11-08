@@ -10,7 +10,8 @@ export class Renderer {
 	private canvas: HTMLCanvasElement
 	private camera: THREE.PerspectiveCamera
 	private renderer: THREE.WebGLRenderer
-	private resourceLoader: ResourceLoader
+	// @ts-ignore - Reserved for future use
+	private _resourceLoader: ResourceLoader
 	private controls: OrbitControls | null = null
 	private animationFrameId: number | null = null
 	private sceneBuilder: Scene | null = null
@@ -20,7 +21,7 @@ export class Renderer {
 
 	constructor(canvas: HTMLCanvasElement, resourceLoader: ResourceLoader) {
 		this.canvas = canvas
-		this.resourceLoader = resourceLoader
+		this._resourceLoader = resourceLoader
 
 		// Initialize Three.js core components
 		this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)

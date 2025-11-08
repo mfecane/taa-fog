@@ -14,11 +14,14 @@ export class Scene {
 	private particleBrightness: number = 1.5
 
 	// Size variables - 4x smaller than screen
-	private readonly renderWidth: number = window.innerWidth / 4
-	private readonly renderHeight: number = window.innerHeight / 4
+	// @ts-ignore - Reserved for future use
+	private readonly _renderWidth: number = window.innerWidth / 4
+	// @ts-ignore - Reserved for future use
+	private readonly _renderHeight: number = window.innerHeight / 4
 	private readonly cubeSize: number = 1 // 1.0 / 4
 	private readonly cubePositionY: number = 1 // 2.0 / 4
-	private readonly bayerMatrixSize: number = 4.0
+	// @ts-ignore - Reserved for future use
+	private readonly _bayerMatrixSize: number = 4.0
 
 	public constructor() {
 		this.scene = new THREE.Scene()
