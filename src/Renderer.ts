@@ -65,14 +65,41 @@ export class Renderer {
 		this.sceneBuilder = new Scene()
 		this.sceneBuilder.build()
 
-		// Camera position
-		this.camera.position.set(2, 2, 2)
-
 		// Orbit controls
 		this.controls = new OrbitControls(this.camera, this.canvas)
 		this.controls.enableDamping = true
 		this.controls.dampingFactor = 0.05
-		this.controls.target.set(0, 1, 0)
+
+		// Load camera position from IndexedDB
+		try {
+			if (this.settingsStorage) {
+				const savedCamera = await this.settingsStorage.loadCameraPosition()
+				if (savedCamera) {
+					this.camera.position.set(savedCamera.position.x, savedCamera.position.y, savedCamera.position.z)
+					this.controls.target.set(savedCamera.target.x, savedCamera.target.y, savedCamera.target.z)
+					this.controls.update()
+				} else {
+					// Default camera position
+					this.camera.position.set(2, 2, 2)
+					this.controls.target.set(0, 1, 0)
+					this.controls.update()
+				}
+			} else {
+				// Default camera position
+				this.camera.position.set(2, 2, 2)
+				this.controls.target.set(0, 1, 0)
+				this.controls.update()
+			}
+		} catch (error) {
+			console.warn('Failed to load camera position from IndexedDB:', error)
+			// Default camera position
+			this.camera.position.set(2, 2, 2)
+			this.controls.target.set(0, 1, 0)
+			this.controls.update()
+		}
+
+		// Save camera position when controls change
+		this.setupCameraSave()
 
 		// Set scene in pipeline
 		this.pipeline.setScene(this.sceneBuilder)
@@ -94,6 +121,39 @@ export class Renderer {
 		this.stats = new Stats()
 		this.stats.showPanel(0) // 0: fps, 1: ms, 2: mb
 		document.body.appendChild(this.stats.dom)
+	}
+
+	private setupCameraSave(): void {
+		if (!this.controls || !this.settingsStorage) return
+
+		let saveTimeout: number | null = null
+		const saveCamera = () => {
+			if (saveTimeout) {
+				clearTimeout(saveTimeout)
+			}
+			// Debounce saves to avoid too frequent writes
+			saveTimeout = window.setTimeout(() => {
+				if (this.controls && this.settingsStorage) {
+					this.settingsStorage.saveCameraPosition(
+						{
+							x: this.camera.position.x,
+							y: this.camera.position.y,
+							z: this.camera.position.z,
+						},
+						{
+							x: this.controls.target.x,
+							y: this.controls.target.y,
+							z: this.controls.target.z,
+						}
+					).catch((error) => {
+						console.warn('Failed to save camera position:', error)
+					})
+				}
+			}, 500) // Save 500ms after last change
+		}
+
+		// Save on control change
+		this.controls.addEventListener('change', saveCamera)
 	}
 
 	private setupGUI(): void {

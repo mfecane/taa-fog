@@ -255,8 +255,8 @@ export class Settings {
 			{ brightness: this.getParticleBrightness() },
 			'brightness',
 			0.0,
-			1.0,
-			0.1
+			0.2,
+			0.01
 		)
 		brightnessController.onChange((value: number) => {
 			this.setParticleBrightness(value)

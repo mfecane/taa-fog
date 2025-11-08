@@ -89,5 +89,56 @@ export class SettingsStorage {
 			}
 		})
 	}
+
+	async saveCameraPosition(position: { x: number; y: number; z: number }, target: { x: number; y: number; z: number }): Promise<void> {
+		if (!this.db) {
+			await this.init()
+		}
+
+		return new Promise((resolve, reject) => {
+			if (!this.db) {
+				reject(new Error('Database not initialized'))
+				return
+			}
+
+			const cameraData = { position, target }
+			const transaction = this.db.transaction([STORE_NAME], 'readwrite')
+			const store = transaction.objectStore(STORE_NAME)
+			const request = store.put(cameraData, 'camera')
+
+			request.onerror = () => {
+				reject(new Error('Failed to save camera position'))
+			}
+
+			request.onsuccess = () => {
+				resolve()
+			}
+		})
+	}
+
+	async loadCameraPosition(): Promise<{ position: { x: number; y: number; z: number }; target: { x: number; y: number; z: number } } | null> {
+		if (!this.db) {
+			await this.init()
+		}
+
+		return new Promise((resolve, reject) => {
+			if (!this.db) {
+				reject(new Error('Database not initialized'))
+				return
+			}
+
+			const transaction = this.db.transaction([STORE_NAME], 'readonly')
+			const store = transaction.objectStore(STORE_NAME)
+			const request = store.get('camera')
+
+			request.onerror = () => {
+				reject(new Error('Failed to load camera position'))
+			}
+
+			request.onsuccess = () => {
+				resolve(request.result || null)
+			}
+		})
+	}
 }
 

@@ -18,6 +18,7 @@ export class Pipeline {
 	private depthTarget: THREE.WebGLRenderTarget | null = null
 	private stochasticDepthMaterial: StochasticDepthMaterial | null = null
 	private stochasticJitterIndex: number = 0
+	private transparentMeshes: THREE.Mesh[] = []
 
 	// Fog buffers (downsampled)
 	private fogCurrentTarget: THREE.WebGLRenderTarget | null = null
@@ -76,6 +77,7 @@ export class Pipeline {
 
 	public setScene(sceneBuilder: Scene): void {
 		this.sceneBuilder = sceneBuilder
+		this.updateTransparentMeshesCache()
 	}
 
 	public render(): void {
@@ -119,25 +121,24 @@ export class Pipeline {
 		const originalMaterials = new Map<THREE.Mesh, THREE.Material>()
 		const clonedMaterials: THREE.ShaderMaterial[] = []
 
-		this.sceneBuilder!.scene.traverse((object) => {
-			if (object instanceof THREE.Mesh) {
-				const material = object.material
-				if (material instanceof THREE.MeshPhysicalMaterial && material.transparent) {
-					// Store original material
-					originalMaterials.set(object, material)
+		// Use cached transparent meshes instead of traversing the scene
+		for (const mesh of this.transparentMeshes) {
+			const material = mesh.material
+			if (material instanceof THREE.MeshPhysicalMaterial && material.transparent) {
+				// Store original material
+				originalMaterials.set(mesh, material)
 
-					// Create a new stochastic depth material instance for each object with its own opacity map
-					const objectStochasticMaterial = this.stochasticDepthMaterial!.clone()
-					objectStochasticMaterial.updateOpacity(material.opacity)
-					objectStochasticMaterial.updateOpacityMap(material.map || null)
-					objectStochasticMaterial.updateJitterIndex(this.stochasticJitterIndex)
-					clonedMaterials.push(objectStochasticMaterial)
+				// Create a new stochastic depth material instance for each object with its own opacity map
+				const objectStochasticMaterial = this.stochasticDepthMaterial!.clone()
+				objectStochasticMaterial.updateOpacity(material.opacity)
+				objectStochasticMaterial.updateOpacityMap(material.map || null)
+				objectStochasticMaterial.updateJitterIndex(this.stochasticJitterIndex)
+				clonedMaterials.push(objectStochasticMaterial)
 
-					// Replace with stochastic depth material
-					object.material = objectStochasticMaterial
-				}
+				// Replace with stochastic depth material
+				mesh.material = objectStochasticMaterial
 			}
-		})
+		}
 
 		// Render to downsampled depth buffer
 		this.renderer.setRenderTarget(this.depthTarget!)
@@ -224,6 +225,26 @@ export class Pipeline {
 
 		// Increment and cycle stochastic jitter index each frame (0-15)
 		this.stochasticJitterIndex = (this.stochasticJitterIndex + 1) % 16
+	}
+
+	private updateTransparentMeshesCache(): void {
+		if (!this.sceneBuilder) {
+			this.transparentMeshes = []
+			return
+		}
+
+		// Clear existing cache
+		this.transparentMeshes = []
+
+		// Traverse scene once to find all transparent meshes
+		this.sceneBuilder.scene.traverse((object) => {
+			if (object instanceof THREE.Mesh) {
+				const material = object.material
+				if (material instanceof THREE.MeshPhysicalMaterial && material.transparent) {
+					this.transparentMeshes.push(object)
+				}
+			}
+		})
 	}
 
 	public updateTargets(): void {

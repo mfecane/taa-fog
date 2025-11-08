@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { TreeTrunkGeometry } from './geometries/TreeTrunkGeometry'
 
 export class Scene {
 	public scene: THREE.Scene
@@ -9,9 +10,13 @@ export class Scene {
 	public gridHelper: THREE.GridHelper | null = null
 	public lightHelper: THREE.DirectionalLightHelper | null = null
 	public shadowHelper: THREE.CameraHelper | null = null
-	public particles: THREE.Mesh[] = []
-	private showHelpers: boolean = false
+	// Replace particles array with instanced mesh
+	public particleInstancedMesh: THREE.InstancedMesh | null = null
+	private particleVelocities: THREE.Vector3[] = []
+	private particlePositions: THREE.Vector3[] = []
+	private particleCount: number = 200
 	private particleBrightness: number = 0.3
+	private showHelpers: boolean = false
 
 	// Size variables - 4x smaller than screen
 	// @ts-ignore - Reserved for future use
@@ -19,7 +24,7 @@ export class Scene {
 	// @ts-ignore - Reserved for future use
 	private readonly _renderHeight: number = window.innerHeight / 4
 	private readonly cubeSize: number = 1 // 1.0 / 4
-	private readonly cubePositionY: number = 1 // 2.0 / 4
+	private readonly cubePositionY: number = 0 // 2.0 / 4
 	// @ts-ignore - Reserved for future use
 	private readonly _bayerMatrixSize: number = 4.0
 
@@ -40,7 +45,6 @@ export class Scene {
 		})
 		this.floor = new THREE.Mesh(floorGeometry, floorMaterial)
 		this.floor.rotation.x = -Math.PI / 2 // Rotate to be horizontal
-		this.floor.position.y = -0.1
 		this.floor.receiveShadow = true
 		this.scene.add(this.floor)
 
@@ -62,16 +66,21 @@ export class Scene {
 		const rgbaTexture = new THREE.CanvasTexture(textureCanvas)
 		rgbaTexture.needsUpdate = true
 
-		// Cylinder with MeshPhysicalMaterial (stretched 50% along Y axis)
-		const cylinderRadius = this.cubeSize / 2
-		const cylinderHeight = this.cubeSize * 1.5 // 50% stretch
-		const cylinderGeometry = new THREE.CylinderGeometry(cylinderRadius, cylinderRadius, cylinderHeight, 32)
+		// Tree trunk geometry (wider at base, narrower at top)
+		const baseRadius = this.cubeSize * 0.4 // Base radius (thinner than original cylinder)
+		const topRadius = this.cubeSize * 0.25 // Narrower top
+		const height = this.cubeSize * 2.0
+		const segments = 8 // More segments for smoother trunk
+		const nGonSides = 8 // Number of sides for the base polygon
+		const shiftAmount = 0.02 // Amount of shift in xz plane per segment
+		const customGeometry = new TreeTrunkGeometry(baseRadius, topRadius, height, segments, nGonSides, shiftAmount)
+
 		const cylinderMaterial = new THREE.MeshPhysicalMaterial({
 			opacity: 1.0, // Use full opacity since texture alpha channel controls it
 			transparent: true,
 			map: rgbaTexture, // Use map with alpha channel instead of alphaMap
 		})
-		this.cube = new THREE.Mesh(cylinderGeometry, cylinderMaterial)
+		this.cube = new THREE.Mesh(customGeometry, cylinderMaterial)
 		this.cube.position.set(0, this.cubePositionY, 0)
 		this.cube.castShadow = true
 		this.cube.receiveShadow = true
@@ -158,60 +167,101 @@ export class Scene {
 		const particleSize = 0.01
 		const particleGeometry = new THREE.PlaneGeometry(particleSize, particleSize)
 
-		// Create particle cloud (200 particles)
-		const particleCount = 200
-		for (let i = 0; i < particleCount; i++) {
-			const particle = new THREE.Mesh(particleGeometry, particleMaterial.clone())
+		// Create instanced mesh
+		this.particleInstancedMesh = new THREE.InstancedMesh(
+			particleGeometry,
+			particleMaterial,
+			this.particleCount
+		)
 
+		// Initialize positions and velocities
+		const matrix = new THREE.Matrix4()
+		const position = new THREE.Vector3()
+
+		for (let i = 0; i < this.particleCount; i++) {
 			// Random position in a sphere around the scene
 			const radius = 2 + Math.random() * 3
 			const theta = Math.random() * Math.PI * 2
 			const phi = Math.acos(2 * Math.random() - 1)
-			particle.position.set(
+
+			position.set(
 				radius * Math.sin(phi) * Math.cos(theta),
 				0.5 + Math.random() * 2,
 				radius * Math.sin(phi) * Math.sin(theta)
 			)
 
-			// Store random velocity for movement (very slow)
-			;(particle as any).velocity = new THREE.Vector3(
-				(Math.random() - 0.5) * 0.002,
-				(Math.random() - 0.5) * 0.002,
-				(Math.random() - 0.5) * 0.002
+			// Store position and velocity
+			this.particlePositions.push(position.clone())
+			this.particleVelocities.push(
+				new THREE.Vector3(
+					(Math.random() - 0.5) * 0.001,
+					(Math.random() - 0.5) * 0.001,
+					(Math.random() - 0.5) * 0.001
+				)
 			)
 
-			this.particles.push(particle)
-			this.scene.add(particle)
+			// Set initial matrix (identity for now, will be updated in updateParticles)
+			matrix.identity()
+			this.particleInstancedMesh.setMatrixAt(i, matrix)
 		}
+
+		// Mark instance matrix as needing update
+		this.particleInstancedMesh.instanceMatrix.needsUpdate = true
+
+		this.scene.add(this.particleInstancedMesh)
 	}
 
 	public updateParticles(camera?: THREE.Camera): void {
+		if (!this.particleInstancedMesh || !camera) return
+
 		const time = Date.now() * 0.001
-		this.particles.forEach((particle) => {
-			const velocity = (particle as any).velocity
-			if (velocity) {
-				// Update position with random movement
-				particle.position.add(velocity)
+		const matrix = new THREE.Matrix4()
+		const up = new THREE.Vector3(0, 1, 0)
+		const cameraPosition = camera.position
 
-				// Add some noise for more organic movement (very slow)
-				particle.position.x += Math.sin(time + particle.position.y * 10) * 0.0001
-				particle.position.y += Math.cos(time + particle.position.x * 10) * 0.0001
-				particle.position.z += Math.sin(time + particle.position.x * 10) * 0.0001
+		// Update each particle
+		for (let i = 0; i < this.particleCount; i++) {
+			const position = this.particlePositions[i]
+			const velocity = this.particleVelocities[i]
 
-				// Wrap around bounds
-				if (particle.position.x > 5) particle.position.x = -5
-				if (particle.position.x < -5) particle.position.x = 5
-				if (particle.position.y > 4) particle.position.y = 0
-				if (particle.position.y < 0) particle.position.y = 4
-				if (particle.position.z > 5) particle.position.z = -5
-				if (particle.position.z < -5) particle.position.z = 5
-			}
+			// Update position with random movement
+			position.add(velocity)
 
-			// Billboard: make sprite always face the camera
-			if (camera) {
-				particle.lookAt(camera.position)
-			}
-		})
+			// Add some noise for more organic movement (very slow)
+			position.x += Math.sin(time + position.y * 10) * 0.00005
+			position.y += Math.cos(time + position.x * 10) * 0.00005
+			position.z += Math.sin(time + position.x * 10) * 0.00005
+
+			// Wrap around bounds
+			if (position.x > 5) position.x = -5
+			if (position.x < -5) position.x = 5
+			if (position.y > 4) position.y = 0
+			if (position.y < 0) position.y = 4
+			if (position.z > 5) position.z = -5
+			if (position.z < -5) position.z = 5
+
+			// Billboard: compute rotation to face camera
+			// Create look-at matrix for billboarding
+			const direction = new THREE.Vector3()
+			direction.subVectors(cameraPosition, position).normalize()
+
+			// Compute right and up vectors for billboard
+			const right = new THREE.Vector3()
+			right.crossVectors(up, direction).normalize()
+
+			const billboardUp = new THREE.Vector3()
+			billboardUp.crossVectors(direction, right).normalize()
+
+			// Build transformation matrix: position + billboard rotation
+			matrix.makeBasis(right, billboardUp, direction)
+			matrix.setPosition(position)
+
+			// Update instance matrix
+			this.particleInstancedMesh.setMatrixAt(i, matrix)
+		}
+
+		// Mark instance matrix as needing update
+		this.particleInstancedMesh.instanceMatrix.needsUpdate = true
 	}
 
 	public getParticleBrightness(): number {
@@ -220,12 +270,10 @@ export class Scene {
 
 	public setParticleBrightness(value: number): void {
 		this.particleBrightness = value
-		// Update all particle materials
-		this.particles.forEach((particle) => {
-			if (particle.material instanceof THREE.MeshPhysicalMaterial) {
-				particle.material.emissiveIntensity = value
-			}
-		})
+		// Update instanced mesh material
+		if (this.particleInstancedMesh && this.particleInstancedMesh.material instanceof THREE.MeshPhysicalMaterial) {
+			this.particleInstancedMesh.material.emissiveIntensity = value
+		}
 	}
 
 	public dispose(): void {
@@ -234,15 +282,18 @@ export class Scene {
 		if (this.lightHelper) this.scene.remove(this.lightHelper)
 		if (this.shadowHelper) this.scene.remove(this.shadowHelper)
 
-		// Clean up particles
-		this.particles.forEach((particle) => {
-			this.scene.remove(particle)
-			particle.geometry.dispose()
-			if (particle.material instanceof THREE.Material) {
-				particle.material.dispose()
+		// Clean up instanced mesh
+		if (this.particleInstancedMesh) {
+			this.scene.remove(this.particleInstancedMesh)
+			this.particleInstancedMesh.geometry.dispose()
+			if (this.particleInstancedMesh.material instanceof THREE.Material) {
+				this.particleInstancedMesh.material.dispose()
 			}
-		})
-		this.particles = []
+			this.particleInstancedMesh.dispose()
+			this.particleInstancedMesh = null
+		}
+		this.particleVelocities = []
+		this.particlePositions = []
 
 		// Clean up Three.js resources
 		this.scene.traverse((object) => {
