@@ -1,5 +1,5 @@
 import './styles.css';
-import { Renderer } from './renderers/Renderer';
+import { Renderer } from './Renderer';
 import { ResourceLoader } from './loaders/ResourceLoader';
 
 class App {

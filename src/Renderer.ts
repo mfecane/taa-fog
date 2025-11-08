@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { ResourceLoader } from '../loaders/ResourceLoader'
+import { ResourceLoader } from './loaders/ResourceLoader'
 import { Scene } from './Scene'
+import { Pipeline } from './Pipeline'
 
 export class Renderer {
 	private canvas: HTMLCanvasElement
@@ -11,6 +12,7 @@ export class Renderer {
 	private controls: OrbitControls | null = null
 	private animationFrameId: number | null = null
 	private sceneBuilder: Scene | null = null
+	private pipeline: Pipeline
 
 	constructor(canvas: HTMLCanvasElement, resourceLoader: ResourceLoader) {
 		this.canvas = canvas
@@ -30,6 +32,9 @@ export class Renderer {
 		this.renderer.shadowMap.enabled = true
 		this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
+		// Initialize pipeline
+		this.pipeline = new Pipeline(this.renderer, this.camera)
+
 		// Handle window resize
 		window.addEventListener('resize', () => this.onResize())
 	}
@@ -40,14 +45,19 @@ export class Renderer {
 		this.sceneBuilder.build()
 
 		// Camera position
-		this.camera.position.set(5, 5, 5)
-		this.camera.lookAt(0, 0, 0)
+		this.camera.position.set(2, 2, 2)
 
 		// Orbit controls
 		this.controls = new OrbitControls(this.camera, this.canvas)
 		this.controls.enableDamping = true
 		this.controls.dampingFactor = 0.05
-		this.controls.target.set(0, 0, 0)
+		this.controls.target.set(0, 1, 0)
+
+		// Set scene in pipeline
+		this.pipeline.setScene(this.sceneBuilder)
+
+		// Update pipeline targets after scene is built
+		this.pipeline.updateTargets()
 	}
 
 	public start(): void {
@@ -64,13 +74,26 @@ export class Renderer {
 			this.controls.update()
 		}
 
-		this.renderer.render(this.sceneBuilder!.scene, this.camera)
+		// Render through pipeline
+		this.pipeline.render()
 	}
 
 	private onResize(): void {
 		this.camera.aspect = window.innerWidth / window.innerHeight
 		this.camera.updateProjectionMatrix()
+		this.pipeline.updateProjectionMatrix()
 		this.renderer.setSize(window.innerWidth, window.innerHeight)
+		this.pipeline.updateTargets()
+	}
+
+	public toggleHelpers(): void {
+		if (!this.sceneBuilder) return
+
+		const visible = !this.sceneBuilder.axesHelper?.visible
+		if (this.sceneBuilder.axesHelper) this.sceneBuilder.axesHelper.visible = visible
+		if (this.sceneBuilder.gridHelper) this.sceneBuilder.gridHelper.visible = visible
+		if (this.sceneBuilder.lightHelper) this.sceneBuilder.lightHelper.visible = visible
+		if (this.sceneBuilder.shadowHelper) this.sceneBuilder.shadowHelper.visible = visible
 	}
 
 	public dispose(): void {
@@ -79,8 +102,10 @@ export class Renderer {
 		}
 
 		// Clean up helpers and scene resources
-
 		this.sceneBuilder?.dispose()
+
+		// Clean up pipeline
+		this.pipeline.dispose()
 
 		// Clean up controls
 		if (this.controls) {

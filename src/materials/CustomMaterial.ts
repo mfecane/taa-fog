@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ShaderBuilder } from '../utils/shaderBuilder';
-import commonChunk from '../chunks/common.glsl?raw';
-import lightingChunk from '../chunks/lighting.glsl?raw';
+import commonChunk from '../shaders/chunks/common.glsl?raw';
+import lightingChunk from '../shaders/chunks/lighting.glsl?raw';
 
 export class CustomMaterial extends THREE.ShaderMaterial {
   public constructor() {

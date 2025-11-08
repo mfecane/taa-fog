@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { StochasticTransparencyMaterial } from './materials/StochasticTransparencyMaterial'
 
 export class Scene {
 	public scene: THREE.Scene
@@ -9,7 +10,14 @@ export class Scene {
 	public gridHelper: THREE.GridHelper | null = null
 	public lightHelper: THREE.PointLightHelper | null = null
 	public shadowHelper: THREE.CameraHelper | null = null
-	private showHelpers: boolean = true
+	private showHelpers: boolean = false
+
+	// Size variables - 4x smaller than screen
+	private readonly renderWidth: number = window.innerWidth / 4
+	private readonly renderHeight: number = window.innerHeight / 4
+	private readonly cubeSize: number = 1 // 1.0 / 4
+	private readonly cubePositionY: number = 1 // 2.0 / 4
+	private readonly bayerMatrixSize: number = 4.0
 
 	public constructor() {
 		this.scene = new THREE.Scene()
@@ -29,24 +37,18 @@ export class Scene {
 		this.floor.receiveShadow = true
 		this.scene.add(this.floor)
 
-		// Cube
-		const cubeGeometry = new THREE.BoxGeometry(1, 1, 1)
-		const cubeMaterial = new THREE.MeshStandardMaterial({
-			color: 0x999999,
-			roughness: 0.7,
-			metalness: 0.3,
-			transparent: true,
-			opacity: 0.5,
-		})
+		// Cube with stochastic transparency (TAA-based, not Three.js default)
+		const cubeGeometry = new THREE.BoxGeometry(this.cubeSize, this.cubeSize, this.cubeSize)
+		const cubeMaterial = this.createStochasticTransparencyMaterial()
 		this.cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
-		this.cube.position.set(0, 2, 0)
+		this.cube.position.set(0, this.cubePositionY, 0)
 		this.cube.castShadow = true
 		this.cube.receiveShadow = true
 		this.scene.add(this.cube)
 
 		// Point light
-		this.pointLight = new THREE.PointLight(0xffffff, 10, 100)
-		this.pointLight.position.set(1, 4, 1)
+		this.pointLight = new THREE.PointLight(0xffffff, 30, 100)
+		this.pointLight.position.set(2, 4, 1)
 		this.pointLight.castShadow = true
 		this.pointLight.shadow.mapSize.width = 2048
 		this.pointLight.shadow.mapSize.height = 2048
@@ -55,7 +57,7 @@ export class Scene {
 		this.scene.add(this.pointLight)
 
 		// Ambient light for overall illumination
-		const ambientLight = new THREE.AmbientLight(0x404040, 0.4)
+		const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
 		this.scene.add(ambientLight)
 
 		// Setup helpers
@@ -74,6 +76,16 @@ export class Scene {
 		this.shadowHelper = new THREE.CameraHelper(this.pointLight.shadow.camera)
 		this.shadowHelper.visible = this.showHelpers
 		this.scene.add(this.shadowHelper)
+	}
+
+	private createStochasticTransparencyMaterial(): StochasticTransparencyMaterial {
+		// Material that uses alpha testing for stochastic transparency
+		// Transparency is achieved through TAA accumulation, not traditional alpha blending
+		return new StochasticTransparencyMaterial(
+			this.renderWidth,
+			this.renderHeight,
+			this.bayerMatrixSize
+		)
 	}
 
 	public dispose(): void {
