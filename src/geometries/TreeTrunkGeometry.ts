@@ -87,31 +87,6 @@ export class TreeTrunkGeometry extends THREE.BufferGeometry {
 			}
 		}
 
-		// Generate bottom cap (base)
-		const bottomCenterIndex = vertices.length / 3
-		vertices.push(0, 0, 0) // Bottom center
-		normals.push(0, -1, 0) // Pointing down
-		uvs.push(0.5, 0) // Center UV
-
-		for (let i = 0; i < nGonSides; i++) {
-			const next = (i + 1) % nGonSides
-			indices.push(bottomCenterIndex, next, i)
-		}
-
-		// Generate top cap
-		const topCenterIndex = vertices.length / 3
-		const topY = height
-		vertices.push(currentShiftX, topY, currentShiftZ) // Top center (shifted)
-		normals.push(0, 1, 0) // Pointing up
-		uvs.push(0.5, 1) // Center UV
-
-		const topBaseIndex = segments * nGonSides
-		for (let i = 0; i < nGonSides; i++) {
-			const current = topBaseIndex + i
-			const next = topBaseIndex + ((i + 1) % nGonSides)
-			indices.push(topCenterIndex, current, next)
-		}
-
 		// Set geometry attributes
 		this.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
 		this.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))

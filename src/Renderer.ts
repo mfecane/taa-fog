@@ -69,6 +69,7 @@ export class Renderer {
 		this.controls = new OrbitControls(this.camera, this.canvas)
 		this.controls.enableDamping = true
 		this.controls.dampingFactor = 0.05
+		this.controls.maxDistance = 4
 
 		// Load camera position from IndexedDB
 		try {
@@ -81,13 +82,13 @@ export class Renderer {
 				} else {
 					// Default camera position
 					this.camera.position.set(2, 2, 2)
-					this.controls.target.set(0, 1, 0)
+					this.controls.target.set(0, 1.25, 0)
 					this.controls.update()
 				}
 			} else {
 				// Default camera position
 				this.camera.position.set(2, 2, 2)
-				this.controls.target.set(0, 1, 0)
+				this.controls.target.set(0, 1.25, 0)
 				this.controls.update()
 			}
 		} catch (error) {
@@ -186,6 +187,14 @@ export class Renderer {
 
 		// Apply particle brightness
 		this.setParticleBrightness(this.settings.getParticleBrightness())
+
+		// Apply post-processing settings
+		this.pipeline.setVignetteIntensity(this.settings.getVignetteIntensity())
+		this.pipeline.setVignetteRadius(this.settings.getVignetteRadius())
+		this.pipeline.setExposure(this.settings.getExposure())
+		this.pipeline.setContrast(this.settings.getContrast())
+		this.pipeline.setSaturation(this.settings.getSaturation())
+		this.pipeline.setPostProcessingBrightness(this.settings.getPostProcessingBrightness())
 	}
 
 	private setParticleBrightness(value: number): void {

@@ -18,6 +18,14 @@ export interface SettingsData {
 	particles: {
 		brightness: number
 	}
+	postProcessing: {
+		vignetteIntensity: number
+		vignetteRadius: number
+		exposure: number
+		contrast: number
+		saturation: number
+		brightness: number
+	}
 }
 
 export class Settings {
@@ -44,6 +52,14 @@ export class Settings {
 			particles: {
 				brightness: 0.3,
 			},
+			postProcessing: {
+				vignetteIntensity: 0.61,
+				vignetteRadius: 0.85,
+				exposure: 1.46,
+				contrast: 1.11,
+				saturation: 0.65,
+				brightness: 1.07,
+			},
 		}
 	}
 
@@ -63,6 +79,10 @@ export class Settings {
 		}
 		if (data.particles) {
 			this.data.particles = { ...this.data.particles, ...data.particles }
+		}
+		if (data.postProcessing) {
+			const defaultPostProcessing = Settings.getDefaults().postProcessing
+			this.data.postProcessing = { ...defaultPostProcessing, ...this.data.postProcessing, ...data.postProcessing }
 		}
 	}
 
@@ -131,6 +151,55 @@ export class Settings {
 
 	setParticleBrightness(value: number): void {
 		this.data.particles.brightness = value
+	}
+
+	// Post Processing
+	getVignetteIntensity(): number {
+		return this.data.postProcessing.vignetteIntensity
+	}
+
+	setVignetteIntensity(value: number): void {
+		this.data.postProcessing.vignetteIntensity = value
+	}
+
+	getVignetteRadius(): number {
+		return this.data.postProcessing.vignetteRadius
+	}
+
+	setVignetteRadius(value: number): void {
+		this.data.postProcessing.vignetteRadius = value
+	}
+
+	getExposure(): number {
+		return this.data.postProcessing.exposure
+	}
+
+	setExposure(value: number): void {
+		this.data.postProcessing.exposure = value
+	}
+
+	getContrast(): number {
+		return this.data.postProcessing.contrast
+	}
+
+	setContrast(value: number): void {
+		this.data.postProcessing.contrast = value
+	}
+
+	getSaturation(): number {
+		return this.data.postProcessing.saturation
+	}
+
+	setSaturation(value: number): void {
+		this.data.postProcessing.saturation = value
+	}
+
+	getPostProcessingBrightness(): number {
+		return this.data.postProcessing.brightness
+	}
+
+	setPostProcessingBrightness(value: number): void {
+		this.data.postProcessing.brightness = value
 	}
 
 	public setupGUI(
@@ -264,6 +333,90 @@ export class Settings {
 			this.saveSettings(settingsStorage)
 		})
 		particlesFolder.open()
+
+		const postProcessingFolder = this.gui.addFolder('Post Processing')
+		if (composeMaterial) {
+			// Vignette
+			const vignetteIntensityController = postProcessingFolder.add(
+				{ vignetteIntensity: this.getVignetteIntensity() },
+				'vignetteIntensity',
+				0.0,
+				1.0,
+				0.01
+			)
+			vignetteIntensityController.onChange((value: number) => {
+				this.setVignetteIntensity(value)
+				pipeline.setVignetteIntensity(value)
+				this.saveSettings(settingsStorage)
+			})
+
+			const vignetteRadiusController = postProcessingFolder.add(
+				{ vignetteRadius: this.getVignetteRadius() },
+				'vignetteRadius',
+				0.0,
+				1.0,
+				0.01
+			)
+			vignetteRadiusController.onChange((value: number) => {
+				this.setVignetteRadius(value)
+				pipeline.setVignetteRadius(value)
+				this.saveSettings(settingsStorage)
+			})
+
+			// Color Correction
+			const exposureController = postProcessingFolder.add(
+				{ exposure: this.getExposure() },
+				'exposure',
+				0.0,
+				2.0,
+				0.01
+			)
+			exposureController.onChange((value: number) => {
+				this.setExposure(value)
+				pipeline.setExposure(value)
+				this.saveSettings(settingsStorage)
+			})
+
+			const contrastController = postProcessingFolder.add(
+				{ contrast: this.getContrast() },
+				'contrast',
+				0.0,
+				2.0,
+				0.01
+			)
+			contrastController.onChange((value: number) => {
+				this.setContrast(value)
+				pipeline.setContrast(value)
+				this.saveSettings(settingsStorage)
+			})
+
+			const saturationController = postProcessingFolder.add(
+				{ saturation: this.getSaturation() },
+				'saturation',
+				0.0,
+				2.0,
+				0.01
+			)
+			saturationController.onChange((value: number) => {
+				this.setSaturation(value)
+				pipeline.setSaturation(value)
+				this.saveSettings(settingsStorage)
+			})
+
+			const brightnessController = postProcessingFolder.add(
+				{ brightness: this.getPostProcessingBrightness() },
+				'brightness',
+				0.0,
+				2.0,
+				0.01
+			)
+			brightnessController.onChange((value: number) => {
+				this.setPostProcessingBrightness(value)
+				pipeline.setPostProcessingBrightness(value)
+				this.saveSettings(settingsStorage)
+			})
+		}
+		postProcessingFolder.open()
 	}
 
 	private async saveSettings(settingsStorage: SettingsStorage | null): Promise<void> {

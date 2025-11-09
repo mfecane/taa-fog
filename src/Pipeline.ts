@@ -338,6 +338,42 @@ export class Pipeline {
 		}
 	}
 
+	public setVignetteIntensity(value: number): void {
+		if (this.composeMaterial) {
+			this.composeMaterial.setVignetteIntensity(value)
+		}
+	}
+
+	public setVignetteRadius(value: number): void {
+		if (this.composeMaterial) {
+			this.composeMaterial.setVignetteRadius(value)
+		}
+	}
+
+	public setExposure(value: number): void {
+		if (this.composeMaterial) {
+			this.composeMaterial.setExposure(value)
+		}
+	}
+
+	public setContrast(value: number): void {
+		if (this.composeMaterial) {
+			this.composeMaterial.setContrast(value)
+		}
+	}
+
+	public setSaturation(value: number): void {
+		if (this.composeMaterial) {
+			this.composeMaterial.setSaturation(value)
+		}
+	}
+
+	public setPostProcessingBrightness(value: number): void {
+		if (this.composeMaterial) {
+			this.composeMaterial.setBrightness(value)
+		}
+	}
+
 	private initColorBuffer(): void {
 		// Create color render target (full resolution)
 		this.colorTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {

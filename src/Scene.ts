@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { TreeTrunkGeometry } from './geometries/TreeTrunkGeometry'
+import { TextureFactory } from './utils/TextureFactory'
 
 export class Scene {
 	public scene: THREE.Scene
@@ -24,7 +25,7 @@ export class Scene {
 	// @ts-ignore - Reserved for future use
 	private readonly _renderHeight: number = window.innerHeight / 4
 	private readonly cubeSize: number = 1 // 1.0 / 4
-	private readonly cubePositionY: number = 0 // 2.0 / 4
+	private readonly cubePositionY: number = 0.01 // 2.0 / 4
 	// @ts-ignore - Reserved for future use
 	private readonly _bayerMatrixSize: number = 4.0
 
@@ -36,49 +37,62 @@ export class Scene {
 		// Set background color for areas without geometry
 		this.scene.background = new THREE.Color(0x1a1a26) // Dark blue-gray
 
-		// Floor plane
+		// Floor plane with radial gradient texture (opaque center, transparent edges)
+		const floorTexture = TextureFactory.createFloorTexture(512)
 		const floorGeometry = new THREE.PlaneGeometry(20, 20)
-		const floorMaterial = new THREE.MeshStandardMaterial({
-			color: 0x808080,
+		const floorMaterial = new THREE.MeshPhysicalMaterial({
+			color: 0x8b7355, // Warm brown to match texture
 			roughness: 0.8,
 			metalness: 0.2,
+			opacity: 1.0,
+			transparent: true,
+			map: floorTexture, // Radial gradient texture with alpha channel
 		})
 		this.floor = new THREE.Mesh(floorGeometry, floorMaterial)
 		this.floor.rotation.x = -Math.PI / 2 // Rotate to be horizontal
 		this.floor.receiveShadow = true
 		this.scene.add(this.floor)
 
-		// Create RGBA texture with alpha channel (transparent on top, opaque on bottom)
-		const textureSize = 256
-		const textureCanvas = document.createElement('canvas')
-		textureCanvas.width = textureSize
-		textureCanvas.height = textureSize
-		const textureContext = textureCanvas.getContext('2d')!
-
-		// Create RGBA gradient from transparent (top) to opaque (bottom)
-		// Using a simple color gradient with alpha channel
-		const gradient = textureContext.createLinearGradient(0, 0, 0, textureSize)
-		gradient.addColorStop(0, 'rgba(150, 150, 180, 0)') // Transparent blue at top
-		gradient.addColorStop(1, 'rgba(150, 150, 180, 1)') // Opaque blue at bottom
-		textureContext.fillStyle = gradient
-		textureContext.fillRect(0, 0, textureSize, textureSize)
-
-		const rgbaTexture = new THREE.CanvasTexture(textureCanvas)
-		rgbaTexture.needsUpdate = true
+		// Create textures using TextureFactory
+		const rgbaTexture = TextureFactory.createTreeTrunkTexture(256)
 
 		// Tree trunk geometry (wider at base, narrower at top)
 		const baseRadius = this.cubeSize * 0.4 // Base radius (thinner than original cylinder)
 		const topRadius = this.cubeSize * 0.25 // Narrower top
-		const height = this.cubeSize * 2.0
-		const segments = 8 // More segments for smoother trunk
-		const nGonSides = 8 // Number of sides for the base polygon
+		const height = this.cubeSize * 2.5
+		const segments = 16 // More segments for smoother trunk
+		const nGonSides = 32 // Number of sides for the base polygon
 		const shiftAmount = 0.02 // Amount of shift in xz plane per segment
 		const customGeometry = new TreeTrunkGeometry(baseRadius, topRadius, height, segments, nGonSides, shiftAmount)
 
+		// Create physical material with RGBA texture
 		const cylinderMaterial = new THREE.MeshPhysicalMaterial({
 			opacity: 1.0, // Use full opacity since texture alpha channel controls it
 			transparent: true,
 			map: rgbaTexture, // Use map with alpha channel instead of alphaMap
+
+			// Albedo: keep it soft & unsaturated, push variation via maps, not pure color
+			color: 0xe3bfa3, // placeholder, will be overridden by map
+
+			metalness: 0.0, // always 0 for skin
+			roughness: 0.45, // 0.35–0.6, use a map for pores / T-zone / etc
+
+			// Soft specular / oiliness
+			specularIntensity: 0.25, // 0.15–0.35
+			specularColor: new THREE.Color(0xffe8d8),
+
+			// Tiny micro-oily layer
+			sheen: 1.0,
+			sheenRoughness: 0.7, // higher = softer
+			sheenColor: new THREE.Color(0xfff3e4),
+
+			// Don’t go crazy with clearcoat; if you use it, keep it ultra subtle
+			clearcoat: 0.0,
+
+			transmission: 0.1, // tiny, we just want softness
+			thickness: 0.05, // 0.02–0.2 depending on scale
+			attenuationColor: new THREE.Color(0xff7a5c), // warm red
+			attenuationDistance: 0.6,
 		})
 		this.cube = new THREE.Mesh(customGeometry, cylinderMaterial)
 		this.cube.position.set(0, this.cubePositionY, 0)
@@ -128,28 +142,9 @@ export class Scene {
 		this.scene.add(this.shadowHelper)
 	}
 
-
 	private createParticleCloud(): void {
-		// Create radial gradient texture for particles
-		const textureSize = 64
-		const textureCanvas = document.createElement('canvas')
-		textureCanvas.width = textureSize
-		textureCanvas.height = textureSize
-		const textureContext = textureCanvas.getContext('2d')!
-
-		// Create radial gradient (opaque center, transparent edges)
-		const centerX = textureSize / 2
-		const centerY = textureSize / 2
-		const radius = textureSize / 2
-		const gradient = textureContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius)
-		gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)') // Opaque white center
-		gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)') // Semi-transparent middle
-		gradient.addColorStop(1, 'rgba(255, 255, 255, 0.0)') // Transparent edges
-		textureContext.fillStyle = gradient
-		textureContext.fillRect(0, 0, textureSize, textureSize)
-
-		const particleTexture = new THREE.CanvasTexture(textureCanvas)
-		particleTexture.needsUpdate = true
+		// Create particle texture using TextureFactory
+		const particleTexture = TextureFactory.createParticleTexture(64)
 
 		// Create particle material with transparency and bright emissive
 		const particleMaterial = new THREE.MeshPhysicalMaterial({
@@ -168,11 +163,7 @@ export class Scene {
 		const particleGeometry = new THREE.PlaneGeometry(particleSize, particleSize)
 
 		// Create instanced mesh
-		this.particleInstancedMesh = new THREE.InstancedMesh(
-			particleGeometry,
-			particleMaterial,
-			this.particleCount
-		)
+		this.particleInstancedMesh = new THREE.InstancedMesh(particleGeometry, particleMaterial, this.particleCount)
 
 		// Initialize positions and velocities
 		const matrix = new THREE.Matrix4()
